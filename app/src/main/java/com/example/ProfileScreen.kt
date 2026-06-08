@@ -959,7 +959,24 @@ fun EditProfileScreen(
                     client.newCall(request).execute().use { response ->
                         val responseBody = response.body?.string()
                         android.util.Log.d("TelegramProfilePic", "Upload success: ${response.isSuccessful}, body: $responseBody")
-                        if (!response.isSuccessful) {
+                        if (response.isSuccessful && responseBody != null) {
+                            val json = org.json.JSONObject(responseBody)
+                            if (json.optBoolean("ok")) {
+                                val result = json.optJSONObject("result")
+                                val photoArray = result?.optJSONArray("photo")
+                                if (photoArray != null && photoArray.length() > 0) {
+                                    val lastPhoto = photoArray.optJSONObject(photoArray.length() - 1)
+                                    val fileId = lastPhoto?.optString("file_id") ?: ""
+                                    if (fileId.isNotEmpty()) {
+                                        val proxyUrl = "https://script.google.com/macros/s/AKfycbyse-oVHrCgGjsCtN7q_TaCEf6YIGKxWkpjL9ILq_Uems0odlikDcO9dAIUMWTlWQ4B8Q/exec"
+                                        val webUrl = "$proxyUrl?action=stream&file_id=$fileId"
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            editCustomAvatarUri = webUrl
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
                             throw Exception("HTTP ${response.code}: $responseBody")
                         }
                     }

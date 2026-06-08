@@ -86,7 +86,7 @@ fun ProfileLogoDisplay(
                 model = displayImageUrl,
                 contentDescription = "Profile Photo",
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize().clip(CircleShape)
             )
         } else {
             val (icon, color, bgColor) = when (displayLogoIndex) {
