@@ -78,6 +78,19 @@ object AlarmHelper {
 
         scheduleAlarm(context, nextPrayerName, nextPrayerTime, isTomorrow)
         
+        // Also schedule a pre-prayer warning (10 mins before) if it's in the future
+        val warningMinutes = 10
+        val warningTimeDecimal = nextPrayerTime - (warningMinutes / 60.0)
+        
+        // Current time in decimal for check
+        val now = Calendar.getInstance()
+        val nowDecimal = now.get(Calendar.HOUR_OF_DAY) + now.get(Calendar.MINUTE) / 60.0 + now.get(Calendar.SECOND) / 3600.0
+        
+        // If we are scheduling for tomorrow, or if the warning time for today is still in the future
+        if (isTomorrow || warningTimeDecimal > nowDecimal) {
+            scheduleWarningAlarm(context, nextPrayerName, warningTimeDecimal, isTomorrow)
+        }
+        
         // Also schedule silent mode alarms
         SilentModeHelper.scheduleSilentAlarms(context, lat, lng, timezoneOffsetHor, madhab)
     }
@@ -105,7 +118,7 @@ object AlarmHelper {
 
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            0,
+            100, // Different request code from warning
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -122,6 +135,46 @@ object AlarmHelper {
         calendar.set(Calendar.SECOND, 0)
         
         // Exact alarm
+        try {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                calendar.timeInMillis,
+                pendingIntent
+            )
+        } catch (e: SecurityException) {
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                calendar.timeInMillis,
+                pendingIntent
+            )
+        }
+    }
+
+    private fun scheduleWarningAlarm(context: Context, name: String, hourDecimal: Double, isTomorrow: Boolean) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            action = "com.example.ACTION_PRAYER_APPROACHING"
+            putExtra("PRAYER_NAME", name)
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            200, // Warning request code
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val calendar = Calendar.getInstance()
+        if (isTomorrow) {
+            calendar.add(Calendar.DAY_OF_YEAR, 1)
+        }
+        val hour = Math.floor(hourDecimal).toInt()
+        val minute = Math.floor((hourDecimal - hour) * 60).toInt()
+        
+        calendar.set(Calendar.HOUR_OF_DAY, hour)
+        calendar.set(Calendar.MINUTE, minute)
+        calendar.set(Calendar.SECOND, 0)
+        
         try {
             alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,

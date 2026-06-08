@@ -326,31 +326,35 @@ fun ProfileScreen(
                     ) {
                         // Top fresh light-green/mint backdrop area colored premium green (PrimaryGreen)
                         Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(85.dp)
-                                .background(PrimaryGreen)
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.TopCenter
                         ) {
-                            // Artistic light circular vector designs to give a modern gradient look
-                            Canvas(modifier = Modifier.fillMaxSize()) {
-                                drawCircle(
-                                    color = Color.White.copy(alpha = 0.15f),
-                                    radius = 45.dp.toPx(),
-                                    center = Offset(30.dp.toPx(), size.height - 15.dp.toPx())
-                                )
-                                drawCircle(
-                                    color = Color.White.copy(alpha = 0.15f),
-                                    radius = 55.dp.toPx(),
-                                    center = Offset(size.width - 40.dp.toPx(), size.height - 25.dp.toPx())
-                                )
-                            }
-                            
-                            // White overlapping circular frame
                             Box(
                                 modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(85.dp)
+                                    .background(PrimaryGreen)
+                            ) {
+                                // Artistic light circular vector designs to give a modern gradient look
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    drawCircle(
+                                        color = Color.White.copy(alpha = 0.15f),
+                                        radius = 45.dp.toPx(),
+                                        center = Offset(30.dp.toPx(), size.height - 15.dp.toPx())
+                                    )
+                                    drawCircle(
+                                        color = Color.White.copy(alpha = 0.15f),
+                                        radius = 55.dp.toPx(),
+                                        center = Offset(size.width - 40.dp.toPx(), size.height - 25.dp.toPx())
+                                    )
+                                }
+                            }
+                            
+                            // White overlapping circular frame (placed outside constrained height Box so it is not squashed)
+                            Box(
+                                modifier = Modifier
+                                    .padding(top = 37.dp) // 85.dp backdrop height - 48.dp (half of 96.dp circle) = 37.dp
                                     .size(96.dp)
-                                    .align(Alignment.BottomCenter)
-                                    .offset(y = 48.dp) // half-height overlap
                                     .background(Color.White, CircleShape)
                                     .border(1.dp, Color(0xFFE5E7EB), CircleShape),
                                 contentAlignment = Alignment.Center
@@ -364,7 +368,7 @@ fun ProfileScreen(
                             }
                         }
                         
-                        Spacer(modifier = Modifier.height(60.dp)) // Spacer for overlapping avatar offset
+                        Spacer(modifier = Modifier.height(16.dp)) // Spacer for overlapping avatar offset
                         
                         val isEn = com.example.viewmodel.GlobalLanguage.isEnglish
                         
@@ -1688,29 +1692,29 @@ fun ProfileOptionRow(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = LocalIndication.current
             )
-            .padding(horizontal = 16.dp, vertical = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp), // elegant, uniform compact iOS-like padding
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .size(38.dp)
-                    .background(iconColor.copy(alpha = 0.1f), CircleShape),
+                    .size(36.dp)
+                    .background(iconColor, RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = iconColor,
-                    modifier = Modifier.size(22.dp)
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
                 )
             }
             Spacer(modifier = Modifier.width(16.dp))
             Text(
                 text = title,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Normal,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium, // slightly heavier weight for distinct readability
                 color = TextDark
             )
         }
@@ -1718,8 +1722,8 @@ fun ProfileOptionRow(
         Icon(
             imageVector = Icons.Default.ChevronRight,
             contentDescription = null,
-            tint = Color(0xFFD1D5DB),
-            modifier = Modifier.size(18.dp)
+            tint = Color(0xFFC7C7CC), // iOS Chevron Light Grey
+            modifier = Modifier.size(16.dp)
         )
     }
 }

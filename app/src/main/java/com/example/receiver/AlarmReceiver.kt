@@ -67,6 +67,11 @@ class AlarmReceiver : BroadcastReceiver() {
                 else -> prayerName
             }
 
+            if (intent.action == "com.example.ACTION_PRAYER_APPROACHING") {
+                showWarningNotification(context, prayerNameBen)
+                return
+            }
+
             val calendar = java.util.Calendar.getInstance()
             val dayOfYear = calendar.get(java.util.Calendar.DAY_OF_YEAR)
             val year = calendar.get(java.util.Calendar.YEAR)
@@ -171,6 +176,50 @@ class AlarmReceiver : BroadcastReceiver() {
             .build()
 
         notificationManager.notify(prayerName.hashCode(), notification)
+    }
+
+    private fun showWarningNotification(context: Context, prayerName: String) {
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channelId = "prayer_times_channel"
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Prayer Times Alerts",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifications for prayer times"
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+        val title = "নামাজের সময় ঘনিয়ে আসছে"
+        val body = "কিছুক্ষণ পর $prayerName সালাতের সময় শুরু হবে। ওযু করে প্রস্তুতি নিন।"
+
+        val intent = Intent(context, com.example.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra("open_notifications", true)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            prayerName.hashCode() + 500,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setSound(alarmSound)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+
+        notificationManager.notify(prayerName.hashCode() + 500, notification)
     }
 
     private fun showAlarmNotification(context: Context, alarmId: Int, label: String, ringtoneUri: String) {
