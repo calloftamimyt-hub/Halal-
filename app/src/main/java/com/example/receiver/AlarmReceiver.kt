@@ -67,8 +67,19 @@ class AlarmReceiver : BroadcastReceiver() {
                 else -> prayerName
             }
 
-            showNotification(context, prayerNameBen)
-            saveNotificationToDb(context, prayerNameBen)
+            val calendar = java.util.Calendar.getInstance()
+            val dayOfYear = calendar.get(java.util.Calendar.DAY_OF_YEAR)
+            val year = calendar.get(java.util.Calendar.YEAR)
+            val dateKey = "prayer_notified_${prayerName}_${year}_${dayOfYear}"
+            
+            val prefs = context.getSharedPreferences("prayer_notification_history", Context.MODE_PRIVATE)
+            val alreadyNotified = prefs.getBoolean(dateKey, false)
+            
+            if (!alreadyNotified) {
+                prefs.edit().putBoolean(dateKey, true).apply()
+                showNotification(context, prayerNameBen)
+                saveNotificationToDb(context, prayerNameBen)
+            }
             
             // Reschedule for the next prayer
             AlarmHelper.reschedule(context)
@@ -138,12 +149,24 @@ class AlarmReceiver : BroadcastReceiver() {
             else -> "এখন $prayerName এর সময়। দয়া করে নামাজের জন্য প্রস্তুতি নিন।"
         }
 
+        val intent = Intent(context, com.example.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra("open_notifications", true)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            prayerName.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setSound(alarmSound)
+            .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .build()
 
