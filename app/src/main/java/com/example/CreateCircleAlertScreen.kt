@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import android.widget.Toast
@@ -199,7 +200,7 @@ fun CreateCircleAlertScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF9FAFB), contentColor = Color(0xFF374151)),
                 border = BorderStroke(1.dp, Color(0xFFE5E7EB))
             ) {
-                Icon(androidx.compose.material.icons.Icons.Default.LocationOn, contentDescription = null, tint = PrimaryGreen)
+                Icon(Icons.Default.LocationOn, contentDescription = null, tint = PrimaryGreen)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(if (isEnglish) "Select specific area via Map" else "ম্যাপের মাধ্যমে নির্দিষ্ট এলাকা নির্বাচন", fontSize = 14.sp)
             }

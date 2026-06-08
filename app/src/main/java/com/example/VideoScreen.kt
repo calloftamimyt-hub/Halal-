@@ -173,6 +173,7 @@ fun VideoScreen(
     isFeedActive: Boolean = true
 ) {
     val context = LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("profile_prefs", Activity.MODE_PRIVATE) }
     val view = LocalView.current
 
     var approvedVideos by remember { mutableStateOf<List<UserUploadedVideo>>(emptyList()) }
@@ -195,6 +196,7 @@ fun VideoScreen(
     val dismissedPendingBanners = remember { mutableStateMapOf<String, Boolean>() }
     
     var isVideosLoading by remember { mutableStateOf(true) }
+    var showTextUploadDialog by remember { mutableStateOf(false) }
     
     // Pagination state
     var lastVisibleDoc by remember { mutableStateOf<com.google.firebase.firestore.DocumentSnapshot?>(null) }
@@ -464,7 +466,10 @@ fun VideoScreen(
             onCategoryChange = { selectedCategory = it },
             isLoading = isVideosLoading,
             onNavigateToFriends = onNavigateToFriends,
-            onNavigateToCreateCircleAlert = onNavigateToCreateCircleAlert
+            onNavigateToCreateCircleAlert = onNavigateToCreateCircleAlert,
+            onTextQuickPost = { 
+                if (currentUserId.isEmpty()) onRequireLogin() else showTextUploadDialog = true 
+            }
         )
 
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
@@ -565,6 +570,37 @@ fun VideoScreen(
                 }
             }
         }
+    }
+
+    if (showTextUploadDialog) {
+        TextPostDialog(
+            onDismiss = { showTextUploadDialog = false },
+            onPost = { content ->
+                showTextUploadDialog = false
+                val docId = java.util.UUID.randomUUID().toString()
+                val profileName = sharedPrefs.getString("name", "Someone") ?: "Someone"
+                
+                val videoRecord = UserUploadedVideo(
+                    docId = docId,
+                    userId = currentUserId,
+                    author = profileName,
+                    title = if (content.length > 30) content.take(30) + "..." else content,
+                    description = content,
+                    timestamp = System.currentTimeMillis(),
+                    status = "APPROVED",
+                    mediaType = "text",
+                    videoUri = "text_post"
+                )
+                
+                com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    .collection("videos")
+                    .document(docId)
+                    .set(videoRecord)
+                    .addOnSuccessListener {
+                        Toast.makeText(context, if (com.example.viewmodel.GlobalLanguage.isEnglish) "Posted successfully!" else "সাফল্যের সাথে পোস্ট করা হয়েছে!", Toast.LENGTH_SHORT).show()
+                    }
+            }
+        )
     }
 }
 
@@ -1171,7 +1207,8 @@ fun VideoTopIcons(
     onCategoryChange: (String) -> Unit = {},
     isLoading: Boolean = false,
     onNavigateToFriends: () -> Unit = {},
-    onNavigateToCreateCircleAlert: () -> Unit = {}
+    onNavigateToCreateCircleAlert: () -> Unit = {},
+    onTextQuickPost: () -> Unit = {}
 ) {
     val isDarkTheme = false
     val backgroundModifier = Modifier.background(Color.White)
@@ -1277,6 +1314,11 @@ fun VideoTopIcons(
                         .fillMaxWidth()
                         .background(Color.White),
                     isLoading = isLoading
+                )
+                QuickPostBar(
+                    currentUserId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "",
+                    onTextPostClick = onTextQuickPost,
+                    onPhotoPostClick = onNavigateToCreateCircleAlert
                 )
                 HorizontalDivider(
                     color = Color(0xFFF0F2F5),
@@ -1478,154 +1520,174 @@ fun FacebookVideoPostCard(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Video Content Container - ADAPTIVE RATIO
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 200.dp, max = 500.dp)
-                    .background(Color.Black)
-                    .clip(androidx.compose.ui.graphics.RectangleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isLimitExceeded) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.5f)) // Simple dark overlay
-                            .background(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.3f), Color.Black.copy(alpha = 0.8f)))),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(24.dp)
+            // Media Content Container
+            if (video.mediaType == "text") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .background(Color(0xFFF0F2F5), RoundedCornerShape(12.dp))
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = video.description,
+                        fontSize = 18.sp,
+                        color = Color.Black,
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Normal,
+                        lineHeight = 26.sp
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 200.dp, max = 500.dp)
+                        .background(Color.Black)
+                        .clip(androidx.compose.ui.graphics.RectangleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isLimitExceeded) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.5f)) // Simple dark overlay
+                                .background(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.3f), Color.Black.copy(alpha = 0.8f)))),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Login to Watch Full Video" else "🔒 সম্পূর্ণ ভিডিও দেখতে লগইন করুন",
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Button(
-                                onClick = onRequireLogin,
-                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.height(44.dp).fillMaxWidth(0.6f)
-                            ) {
-                                Text(
-                                    if (com.example.viewmodel.GlobalLanguage.isEnglish) "Login Now" else "লগইন করুন",
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        if (video.mediaType == "photo") {
-                            val imageUrl = if (video.telegramFileId.isNotEmpty() && !TELEGRAM_PROXY_URL.contains("YOUR_SCRIPT_ID")) {
-                                "$TELEGRAM_PROXY_URL?action=stream&file_id=${video.telegramFileId}"
-                            } else {
-                                video.url.ifEmpty { video.videoUri }
-                            }
-                            
-                            var isLoadingImage by remember { mutableStateOf(true) }
-                            
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                // Blurred background to fill any gaps (fixes black screen perception)
-                                coil.compose.AsyncImage(
-                                    model = imageUrl,
-                                    contentDescription = null,
-                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize().blur(radius = 20.dp).alpha(0.5f)
-                                )
-                                
-                                coil.compose.AsyncImage(
-                                    model = imageUrl,
-                                    contentDescription = "Circle Alert Image",
-                                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-                                    modifier = Modifier.fillMaxSize().clickable { onPlayClick() },
-                                    onSuccess = { isLoadingImage = false },
-                                    onError = { isLoadingImage = false }
-                                )
-                                if (isLoadingImage) {
-                                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                                }
-                            }
-                        } else {
-                            VideoPlayer(
-                                videoItem = video, 
-                                isSelected = isPlaying, 
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            
-                            if (!isPlaying) {
                                 Box(
                                     modifier = Modifier
-                                        .fillMaxSize()
-                                        .clickable { onPlayClick() }
-                                        .background(Color.Black.copy(alpha = 0.1f)), // Subtle tint
+                                        .size(64.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.2f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    if (video.thumbnailUrl.isNotEmpty() || getYoutubeThumbnail(video.videoUri).isNotEmpty()) {
-                                         androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
-                                             val imageUrl = if (video.thumbnailUrl.isNotEmpty()) video.thumbnailUrl else getYoutubeThumbnail(video.videoUri)
-                                             coil.compose.AsyncImage(
-                                                 model = imageUrl,
-                                                 contentDescription = null,
-                                                 modifier = Modifier.fillMaxSize(),
-                                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                                             )
-                                             // Play icon overlay
-                                             Icon(
-                                                 imageVector = Icons.Default.PlayArrow,
-                                                 contentDescription = null,
-                                                 tint = Color.White.copy(alpha = 0.8f),
-                                                 modifier = Modifier.size(60.dp).align(Alignment.Center)
-                                             )
-                                         }
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Default.PlayArrow,
-                                            contentDescription = null,
-                                            tint = Color.White,
-                                            modifier = Modifier.size(60.dp)
-                                        )
+                                    Icon(
+                                        imageVector = Icons.Default.Lock,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Login to Watch Full Video" else "🔒 সম্পূর্ণ ভিডিও দেখতে লগইন করুন",
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = onRequireLogin,
+                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.height(44.dp).fillMaxWidth(0.6f)
+                                ) {
+                                    Text(
+                                        if (com.example.viewmodel.GlobalLanguage.isEnglish) "Login Now" else "লগইন করুন",
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            if (video.mediaType == "photo") {
+                                val imageUrl = if (video.telegramFileId.isNotEmpty() && !TELEGRAM_PROXY_URL.contains("YOUR_SCRIPT_ID")) {
+                                    "$TELEGRAM_PROXY_URL?action=stream&file_id=${video.telegramFileId}"
+                                } else {
+                                    video.url.ifEmpty { video.videoUri }
+                                }
+                                
+                                var isLoadingImage by remember { mutableStateOf(true) }
+                                
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    // Blurred background to fill any gaps (fixes black screen perception)
+                                    coil.compose.AsyncImage(
+                                        model = imageUrl,
+                                        contentDescription = null,
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize().blur(radius = 20.dp).alpha(0.5f)
+                                    )
+                                    
+                                    coil.compose.AsyncImage(
+                                        model = imageUrl,
+                                        contentDescription = "Circle Alert Image",
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                                        modifier = Modifier.fillMaxSize().clickable { onPlayClick() },
+                                        onSuccess = { isLoadingImage = false },
+                                        onError = { isLoadingImage = false }
+                                    )
+                                    if (isLoadingImage) {
+                                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                                    }
+                                }
+                            } else {
+                                VideoPlayer(
+                                    videoItem = video, 
+                                    isSelected = isPlaying, 
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                
+                                if (!isPlaying) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clickable { onPlayClick() }
+                                            .background(Color.Black.copy(alpha = 0.1f)), // Subtle tint
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (video.thumbnailUrl.isNotEmpty() || getYoutubeThumbnail(video.videoUri).isNotEmpty()) {
+                                             androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
+                                                 val imageUrl = if (video.thumbnailUrl.isNotEmpty()) video.thumbnailUrl else getYoutubeThumbnail(video.videoUri)
+                                                 coil.compose.AsyncImage(
+                                                     model = imageUrl,
+                                                     contentDescription = null,
+                                                     modifier = Modifier.fillMaxSize(),
+                                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                                 )
+                                                 // Play icon overlay
+                                                 Icon(
+                                                     imageVector = Icons.Default.PlayArrow,
+                                                     contentDescription = null,
+                                                     tint = Color.White.copy(alpha = 0.8f),
+                                                     modifier = Modifier.size(60.dp).align(Alignment.Center)
+                                                 )
+                                             }
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.PlayArrow,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(60.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
-                        }
-
-                        // THE ALERT TAG ON TOP RIGHT
-                        if (video.isCircleAlert) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(12.dp)
-                                    .background(Color.Red, RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "ALERT 🚨" else "অ্যালার্ট 🚨",
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+    
+                            // THE ALERT TAG ON TOP RIGHT
+                            if (video.isCircleAlert) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(12.dp)
+                                        .background(Color.Red, RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "ALERT 🚨" else "অ্যালার্ট 🚨",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }
@@ -1935,15 +1997,6 @@ fun FacebookVideoPostCard(
             }
         }
     }
-
-    if (isDownloading) {
-        AlertDialog(
-            onDismissRequest = {},
-            title = { Text("Downloading...") },
-            text = { LinearProgressIndicator(progress = { downloadProgress }, color = PrimaryGreen, modifier = Modifier.fillMaxWidth()) },
-            confirmButton = {}
-        )
-    }
 }
 
 @Composable
@@ -1981,6 +2034,160 @@ fun ShimmerPlaceholder(
     )
 }
 
+@Composable
+fun QuickPostBar(
+    currentUserId: String,
+    onTextPostClick: () -> Unit,
+    onPhotoPostClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = androidx.compose.ui.graphics.RectangleShape
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ProfileLogoDisplay(
+                userId = currentUserId,
+                modifier = Modifier.size(40.dp)
+            )
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            // "What's on your mind?" Input Box UI
+            Surface(
+                onClick = onTextPostClick,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
+                color = Color.Transparent
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(
+                        text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "What's on your mind?" else "আপনার মনের কথা বলুন...",
+                        color = Color.Black.copy(alpha = 0.7f),
+                        fontSize = 14.sp
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.width(10.dp))
+            
+            // Photo Icon
+            IconButton(onClick = onPhotoPostClick) {
+                Icon(
+                    imageVector = Icons.Default.Image,
+                    contentDescription = "Upload Photo",
+                    tint = Color(0xFF4CAF50), // Facebook-style green for photos
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+        }
+        HorizontalDivider(color = Color(0xFFF0F2F5), thickness = 1.dp)
+    }
+}
+
+@Composable
+fun TextPostDialog(
+    onDismiss: () -> Unit,
+    onPost: (String) -> Unit
+) {
+    var text by remember { mutableStateOf("") }
+    val isEnglish = com.example.viewmodel.GlobalLanguage.isEnglish
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White),
+            shape = androidx.compose.ui.graphics.RectangleShape,
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+                // Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                    Text(
+                        text = if (isEnglish) "Create Text Post" else "টেক্সট পোস্ট তৈরি করুন",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Button(
+                        onClick = { if (text.trim().isNotEmpty()) onPost(text) },
+                        enabled = text.trim().isNotEmpty(),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(if (isEnglish) "Post" else "পোস্ট করুন")
+                    }
+                }
+                
+                HorizontalDivider(color = Color(0xFFF0F2F5))
+                
+                // Content area
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ProfileLogoDisplay(
+                        userId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "",
+                        modifier = Modifier.size(45.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        val userName = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.displayName ?: "User"
+                        Text(userName, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (isEnglish) "Public" else "পাবলিক",
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+                
+                TextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    placeholder = { 
+                        Text(
+                            if (isEnglish) "What's on your mind?" else "আপনার মনের কথা শেয়ার করুন...",
+                            fontSize = 20.sp
+                        ) 
+                    },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 20.sp)
+                )
+            }
+        }
+    }
+}
 @Composable
 fun VideoPostCardSkeleton() {
     Card(
