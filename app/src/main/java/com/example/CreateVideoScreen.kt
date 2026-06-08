@@ -67,6 +67,8 @@ object VideoStorage {
     fun saveVideo(context: Context, video: UserUploadedVideo) {
         val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val list = getVideos(context).toMutableList()
+        // Prevent duplicate local entries of the exact same docId
+        list.removeAll { it.docId == video.docId }
         list.add(0, video) // Prepend newest first
 
         val jsonArray = JSONArray()
@@ -88,6 +90,17 @@ object VideoStorage {
             obj.put("isHideViews", item.isHideViews)
             obj.put("status", item.status)
             obj.put("telegramFileId", item.telegramFileId)
+            obj.put("thumbnailUrl", item.thumbnailUrl)
+            obj.put("viewsCount", item.viewsCount)
+            obj.put("mediaType", item.mediaType)
+            obj.put("contactNumber", item.contactNumber)
+            obj.put("country", item.country)
+            obj.put("location", item.location)
+            obj.put("isCircleAlert", item.isCircleAlert)
+            obj.put("alertCategory", item.alertCategory)
+            obj.put("isRegionalNotificationSent", item.isRegionalNotificationSent)
+            obj.put("backgroundStyle", item.backgroundStyle)
+            obj.put("visibilityMode", item.visibilityMode)
             jsonArray.put(obj)
         }
         sharedPrefs.edit().putString(KEY_VIDEOS, jsonArray.toString()).apply()
@@ -108,6 +121,122 @@ object VideoStorage {
         }
     }
 
+    fun deleteVideo(context: Context, docId: String) {
+        val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val list = getVideos(context).toMutableList()
+        val changed = list.removeAll { it.docId == docId }
+        
+        if (changed) {
+            val jsonArray = JSONArray()
+            list.forEach { item ->
+                val obj = JSONObject()
+                obj.put("docId", item.docId)
+                obj.put("userId", item.userId)
+                obj.put("title", item.title)
+                obj.put("author", item.author)
+                obj.put("description", item.description)
+                obj.put("videoUri", item.videoUri)
+                obj.put("timestamp", item.timestamp)
+                obj.put("isLocal", item.isLocal)
+                obj.put("aspectSize", item.aspectSize)
+                obj.put("category", item.category)
+                obj.put("isOfflineMode", item.isOfflineMode)
+                obj.put("isAutoSubtitles", item.isAutoSubtitles)
+                obj.put("isCommentModerated", item.isCommentModerated)
+                obj.put("isHideViews", item.isHideViews)
+                obj.put("status", item.status)
+                obj.put("telegramFileId", item.telegramFileId)
+                obj.put("thumbnailUrl", item.thumbnailUrl)
+                obj.put("viewsCount", item.viewsCount)
+                obj.put("mediaType", item.mediaType)
+                obj.put("contactNumber", item.contactNumber)
+                obj.put("country", item.country)
+                obj.put("location", item.location)
+                obj.put("isCircleAlert", item.isCircleAlert)
+                obj.put("alertCategory", item.alertCategory)
+                obj.put("isRegionalNotificationSent", item.isRegionalNotificationSent)
+                obj.put("backgroundStyle", item.backgroundStyle)
+                obj.put("visibilityMode", item.visibilityMode)
+                jsonArray.put(obj)
+            }
+            sharedPrefs.edit().putString(KEY_VIDEOS, jsonArray.toString()).apply()
+        }
+
+        // Firebase Firestore delete
+        try {
+            val firestore = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            firestore.collection("videos").document(docId).delete()
+                .addOnSuccessListener {
+                    android.util.Log.d("Firebase", "Post deleted from firestore")
+                }
+        } catch (e: Exception) {
+            android.util.Log.e("Firebase", "Firestore delete failed", e)
+        }
+    }
+
+    fun updateVideo(context: Context, docId: String, updatedDescription: String, updatedTitle: String) {
+        val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val list = getVideos(context).toMutableList()
+        val index = list.indexOfFirst { it.docId == docId }
+        
+        if (index != -1) {
+            val oldItem = list[index]
+            val updated = oldItem.copy(description = updatedDescription, title = updatedTitle)
+            list[index] = updated
+            
+            val jsonArray = JSONArray()
+            list.forEach { item ->
+                val obj = JSONObject()
+                obj.put("docId", item.docId)
+                obj.put("userId", item.userId)
+                obj.put("title", item.title)
+                obj.put("author", item.author)
+                obj.put("description", item.description)
+                obj.put("videoUri", item.videoUri)
+                obj.put("timestamp", item.timestamp)
+                obj.put("isLocal", item.isLocal)
+                obj.put("aspectSize", item.aspectSize)
+                obj.put("category", item.category)
+                obj.put("isOfflineMode", item.isOfflineMode)
+                obj.put("isAutoSubtitles", item.isAutoSubtitles)
+                obj.put("isCommentModerated", item.isCommentModerated)
+                obj.put("isHideViews", item.isHideViews)
+                obj.put("status", item.status)
+                obj.put("telegramFileId", item.telegramFileId)
+                obj.put("thumbnailUrl", item.thumbnailUrl)
+                obj.put("viewsCount", item.viewsCount)
+                obj.put("mediaType", item.mediaType)
+                obj.put("contactNumber", item.contactNumber)
+                obj.put("country", item.country)
+                obj.put("location", item.location)
+                obj.put("isCircleAlert", item.isCircleAlert)
+                obj.put("alertCategory", item.alertCategory)
+                obj.put("isRegionalNotificationSent", item.isRegionalNotificationSent)
+                obj.put("backgroundStyle", item.backgroundStyle)
+                obj.put("visibilityMode", item.visibilityMode)
+                jsonArray.put(obj)
+            }
+            sharedPrefs.edit().putString(KEY_VIDEOS, jsonArray.toString()).apply()
+        }
+
+        // Firebase Firestore update
+        try {
+            val firestore = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            firestore.collection("videos").document(docId)
+                .update(
+                    mapOf(
+                        "description" to updatedDescription,
+                        "title" to updatedTitle
+                    )
+                )
+                .addOnSuccessListener {
+                    android.util.Log.d("Firebase", "Video updated in Firestore")
+                }
+        } catch (e: Exception) {
+            android.util.Log.e("Firebase", "Firestore update failed", e)
+        }
+    }
+
     fun getVideos(context: Context): List<UserUploadedVideo> {
         val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val jsonStr = sharedPrefs.getString(KEY_VIDEOS, null) ?: return emptyList()
@@ -120,8 +249,8 @@ object VideoStorage {
                     UserUploadedVideo(
                         docId = obj.optString("docId", ""),
                         userId = obj.optString("userId", ""),
-                        title = obj.optString("title", ""),
-                        author = obj.optString("author", "@user"),
+                        title = obj.optString("title", "@user"),
+                        author = obj.optString("author", "Unknown Author"),
                         description = obj.optString("description", ""),
                         videoUri = obj.optString("videoUri", ""),
                         timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
@@ -133,7 +262,18 @@ object VideoStorage {
                         isCommentModerated = obj.optBoolean("isCommentModerated", true),
                         isHideViews = obj.optBoolean("isHideViews", false),
                         status = obj.optString("status", "PENDING"),
-                        telegramFileId = obj.optString("telegramFileId", "")
+                        telegramFileId = obj.optString("telegramFileId", ""),
+                        thumbnailUrl = obj.optString("thumbnailUrl", ""),
+                        viewsCount = obj.optLong("viewsCount", 0L),
+                        mediaType = obj.optString("mediaType", "video"),
+                        contactNumber = obj.optString("contactNumber", ""),
+                        country = obj.optString("country", "Bangladesh"),
+                        location = obj.optString("location", "All Bangladesh"),
+                        isCircleAlert = obj.optBoolean("isCircleAlert", false),
+                        alertCategory = obj.optString("alertCategory", ""),
+                        isRegionalNotificationSent = obj.optBoolean("isRegionalNotificationSent", false),
+                        backgroundStyle = obj.optString("backgroundStyle", ""),
+                        visibilityMode = obj.optString("visibilityMode", "public")
                     )
                 )
             }

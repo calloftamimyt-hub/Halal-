@@ -557,40 +557,103 @@ fun VideoScreen(
                         }
                     }
 
-                    if (isVideosLoading && displayList.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize().background(Color.White), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(color = PrimaryGreen)
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Loading Feed..." else "ফিড লোড হচ্ছে...", color = Color.Gray, fontSize = 14.sp)
-                            }
+                    LazyColumn(
+                        state = lazyListState,
+                        modifier = Modifier.fillMaxSize().background(Color(0xFFF0F2F5)),
+                        contentPadding = PaddingValues(bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                    ) {
+                        // Category list and Quick Post card as the natural scrollable header items
+                        item {
+                            VideoCategoryList(
+                                selectedCategory = selectedCategory,
+                                allCategories = allCategories,
+                                onCategoryChange = { selectedCategory = it },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.White),
+                                isLoading = isVideosLoading
+                            )
+                            QuickPostBar(
+                                currentUserId = currentUserId,
+                                onTextPostClick = { 
+                                    if (currentUserId.isEmpty()) {
+                                        onRequireLogin()
+                                    } else {
+                                        quickPostImageUri = null
+                                        showTextUploadDialog = true
+                                    }
+                                },
+                                onPhotoPostClick = {
+                                    if (currentUserId.isEmpty()) {
+                                        onRequireLogin()
+                                    } else {
+                                        quickPostImageLauncher.launch("image/*")
+                                    }
+                                }
+                            )
+                            HorizontalDivider(
+                                color = Color(0xFFF0F2F5),
+                                thickness = 8.dp
+                            )
                         }
-                    } else if (displayList.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize().background(Color.White), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
-                                Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(48.dp))
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "No videos available. Tap to refresh." else "কোনো ভিডিও পাওয়া যায়নি। রিফ্রেশ করতে ট্যাপ করুন।", 
-                                    color = Color.Black,
-                                    textAlign = TextAlign.Center
-                                )
-                                Button(
-                                    onClick = { isVideosLoading = true },
-                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
-                                    modifier = Modifier.padding(top = 16.dp)
+
+                        if (isVideosLoading && displayList.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(300.dp)
+                                        .background(Color.White),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Text("রিফ্রেশ করুন")
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        CircularProgressIndicator(color = PrimaryGreen)
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                            text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Loading Feed..." else "ফিড লোড হচ্ছে...",
+                                            color = Color.Gray,
+                                            fontSize = 14.sp
+                                        )
+                                    }
                                 }
                             }
-                        }
-                    } else {
-                        LazyColumn(
-                            state = lazyListState,
-                            modifier = Modifier.fillMaxSize().background(Color(0xFFF0F2F5)),
-                            contentPadding = PaddingValues(bottom = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(0.dp)
-                        ) {
+                        } else if (displayList.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(400.dp)
+                                        .background(Color.White),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.padding(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = null,
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(48.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Text(
+                                            text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "No videos available. Tap to refresh." else "কোনো ভিডিও পাওয়া যায়নি। রিফ্রেশ করতে ট্যাপ করুন।", 
+                                            color = Color.Black,
+                                            textAlign = TextAlign.Center
+                                        )
+                                        Button(
+                                            onClick = { isVideosLoading = true },
+                                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                                            modifier = Modifier.padding(top = 16.dp)
+                                        ) {
+                                            Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Refresh" else "রিফ্রেশ করুন")
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
                             itemsIndexed(displayList, key = { _, video -> video.docId }) { index, video ->
                                 val isVisible = playingVideoId == video.docId && isFeedActive
                                 
@@ -615,7 +678,12 @@ fun VideoScreen(
 
                             if (isFetchingMore) {
                                 item { 
-                                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
                                         CircularProgressIndicator(color = PrimaryGreen, modifier = Modifier.size(24.dp))
                                     }
                                 }
@@ -689,13 +757,25 @@ fun VideoScreen(
                     }
                     Toast.makeText(context, if (com.example.viewmodel.GlobalLanguage.isEnglish) "Photo posting started in background..." else "ছবি পোস্ট করা শুরু হয়েছে...", Toast.LENGTH_SHORT).show()
                 } else {
-                    // For pure text post, let's auto-approve and write straight to Firestore
+                    // For pure text post, let's write to Firestore as PENDING (not approved) and notify Telegram via VideoUploadService
+                    com.example.VideoStorage.saveVideo(context, videoRecord.copy(status = "PENDING"))
                     com.google.firebase.firestore.FirebaseFirestore.getInstance()
                         .collection("videos")
                         .document(docId)
-                        .set(videoRecord.copy(status = "APPROVED"))
+                        .set(videoRecord.copy(status = "PENDING"))
                         .addOnSuccessListener {
-                            Toast.makeText(context, if (com.example.viewmodel.GlobalLanguage.isEnglish) "Posted successfully!" else "সাফল্যের সাথে পোস্ট করা হয়েছে!", Toast.LENGTH_SHORT).show()
+                            val intent = android.content.Intent(context, com.example.VideoUploadService::class.java).apply {
+                                putExtra("mediaType", "text")
+                                putExtra("title", videoRecord.title)
+                                putExtra("description", content)
+                                putExtra("docId", docId)
+                            }
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                context.startForegroundService(intent)
+                            } else {
+                                context.startService(intent)
+                            }
+                            Toast.makeText(context, if (com.example.viewmodel.GlobalLanguage.isEnglish) "Post pending admin approval via Telegram..." else "পোস্টটি এডমিন অ্যাপ্রুভালের জন্য টেলিগ্রামে পাঠানো হয়েছে...", Toast.LENGTH_SHORT).show()
                         }
                 }
             }
@@ -1407,35 +1487,10 @@ fun VideoTopIcons(
                 )
             }
 
-            if (activeSubTab == "home") {
-                HorizontalDivider(
-                    color = Color(0xFFF0F2F5),
-                    thickness = 1.dp
-                )
-                VideoCategoryList(
-                    selectedCategory = selectedCategory,
-                    allCategories = allCategories,
-                    onCategoryChange = onCategoryChange,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color.White),
-                    isLoading = isLoading
-                )
-                QuickPostBar(
-                    currentUserId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "",
-                    onTextPostClick = onTextQuickPost,
-                    onPhotoPostClick = onPhotoQuickPost
-                )
-                HorizontalDivider(
-                    color = Color(0xFFF0F2F5),
-                    thickness = 8.dp
-                )
-            } else {
-                HorizontalDivider(
-                    color = Color(0xFFE4E6EB),
-                    thickness = 1.dp
-                )
-            }
+            HorizontalDivider(
+                color = Color(0xFFE4E6EB),
+                thickness = 1.dp
+            )
         }
     }
 }
@@ -1473,6 +1528,10 @@ fun FacebookVideoPostCard(
     }
     
     var showOptionsSheet by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var editTitleText by remember(video.title) { mutableStateOf(video.title) }
+    var editDescriptionText by remember(video.description) { mutableStateOf(video.description) }
+    var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
 
     // View Increment Logic
@@ -2004,24 +2063,44 @@ fun FacebookVideoPostCard(
                     .padding(bottom = 32.dp)
             ) {
                 // Options List
-                val options = listOf(
-                    Triple(Icons.Default.Share, "Share post", {
+                val options = remember(isFollowed, isSaved, currentUserId, video.userId, video.docId) {
+                    val list = mutableListOf<Triple<androidx.compose.ui.graphics.vector.ImageVector, String, () -> Unit>>()
+                    
+                    // Owner Only: Edit and Delete at the top
+                    if (video.userId.isNotEmpty() && currentUserId == video.userId) {
+                        list.add(Triple(Icons.Default.Edit, if (com.example.viewmodel.GlobalLanguage.isEnglish) "Edit Post" else "পোস্ট পরিবর্তন করুন", {
+                            showOptionsSheet = false
+                            editTitleText = video.title
+                            editDescriptionText = video.description
+                            showEditDialog = true
+                        }))
+                        list.add(Triple(Icons.Default.Delete, if (com.example.viewmodel.GlobalLanguage.isEnglish) "Delete Post" else "পোস্ট মুছে ফেলুন", {
+                            showOptionsSheet = false
+                            showDeleteConfirmationDialog = true
+                        }))
+                    }
+                    
+                    list.add(Triple(Icons.Default.Share, "Share post", {
                         showOptionsSheet = false
                         Toast.makeText(context, "Shared!", Toast.LENGTH_SHORT).show()
-                    }),
-                    Triple(Icons.Default.Link, "Copy link", {
+                    }))
+                    
+                    list.add(Triple(Icons.Default.Link, "Copy link", {
                         showOptionsSheet = false
                         Toast.makeText(context, "Link copied!", Toast.LENGTH_SHORT).show()
-                    }),
-                    Triple(Icons.Default.Report, "Report", {
+                    }))
+                    
+                    list.add(Triple(Icons.Default.Report, "Report", {
                         showOptionsSheet = false
                         showReportDialog = true
-                    }),
-                    Triple(Icons.Default.Copyright, "Copyright claim", {
+                    }))
+                    
+                    list.add(Triple(Icons.Default.Copyright, "Copyright claim", {
                         showOptionsSheet = false
                         Toast.makeText(context, "Reported for copyright", Toast.LENGTH_SHORT).show()
-                    }),
-                    Triple(Icons.Default.PersonAdd, if (isFollowed) "Unfollow" else "Follow", {
+                    }))
+                    
+                    list.add(Triple(Icons.Default.PersonAdd, if (isFollowed) "Unfollow" else "Follow", {
                         showOptionsSheet = false
                         if (currentUserId.isEmpty()) Toast.makeText(context, "Login required", Toast.LENGTH_SHORT).show()
                         else {
@@ -2060,16 +2139,19 @@ fun FacebookVideoPostCard(
                                     }
                             }
                         }
-                    }),
-                    Triple(Icons.Default.Block, "Block user", {
+                    }))
+                    
+                    list.add(Triple(Icons.Default.Block, "Block user", {
                         showOptionsSheet = false
                         Toast.makeText(context, "User blocked", Toast.LENGTH_SHORT).show()
-                    }),
-                    Triple(Icons.Default.VisibilityOff, "Not interested", {
+                    }))
+                    
+                    list.add(Triple(Icons.Default.VisibilityOff, "Not interested", {
                         showOptionsSheet = false
                         Toast.makeText(context, "Thanks, we'll show fewer posts like this", Toast.LENGTH_SHORT).show()
-                    }),
-                    Triple(Icons.Default.BookmarkBorder, if (isSaved) "Unsave post" else "Save post", {
+                    }))
+                    
+                    list.add(Triple(Icons.Default.BookmarkBorder, if (isSaved) "Unsave post" else "Save post", {
                         showOptionsSheet = false
                         scope.launch {
                             if (isSaved) {
@@ -2099,8 +2181,9 @@ fun FacebookVideoPostCard(
                                 Toast.makeText(context, "Saved to your list", Toast.LENGTH_SHORT).show()
                             }
                         }
-                    }),
-                    Triple(Icons.Default.Download, "Download", {
+                    }))
+                    
+                    list.add(Triple(Icons.Default.Download, "Download", {
                         showOptionsSheet = false
                         if (video.url.isNotEmpty()) {
                             try {
@@ -2123,8 +2206,10 @@ fun FacebookVideoPostCard(
                         } else {
                             Toast.makeText(context, "Invalid video URL", Toast.LENGTH_SHORT).show()
                         }
-                    })
-                )
+                    }))
+                    
+                    list
+                }
 
                 options.forEach { (icon, label, action) ->
                     Row(
@@ -2134,13 +2219,148 @@ fun FacebookVideoPostCard(
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(icon, contentDescription = null, tint = Color.DarkGray, modifier = Modifier.size(24.dp))
+                        Icon(icon, contentDescription = null, tint = if (label.contains("মুছে") || label.contains("Delete")) Color.Red else Color.DarkGray, modifier = Modifier.size(24.dp))
                         Spacer(modifier = Modifier.width(16.dp))
-                        Text(text = label, fontSize = 16.sp, color = Color.Black)
+                        Text(text = label, fontSize = 16.sp, color = if (label.contains("মুছে") || label.contains("Delete")) Color.Red else Color.Black)
                     }
                 }
             }
         }
+    }
+
+    if (showEditDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = {
+                Text(
+                    text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Edit Post" else "পোস্ট পরিবর্তন করুন",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color.Black
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (video.mediaType != "text") {
+                        OutlinedTextField(
+                            value = editTitleText,
+                            onValueChange = { editTitleText = it },
+                            label = { Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Title" else "শিরোনাম") },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PrimaryGreen,
+                                focusedLabelColor = PrimaryGreen
+                            )
+                        )
+                    }
+                    OutlinedTextField(
+                        value = editDescriptionText,
+                        onValueChange = { editDescriptionText = it },
+                        label = { Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Main Content / Description" else "মূল বক্তব্য / বিবরণ") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PrimaryGreen,
+                            focusedLabelColor = PrimaryGreen
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showEditDialog = false
+                        com.example.VideoStorage.updateVideo(
+                            context = context,
+                            docId = video.docId,
+                            updatedDescription = editDescriptionText,
+                            updatedTitle = editTitleText
+                        )
+                        Toast.makeText(
+                            context,
+                            if (com.example.viewmodel.GlobalLanguage.isEnglish) "Post updated successfully!" else "পোস্ট সফলভাবে পরিবর্তন করা হয়েছে!",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                ) {
+                    Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Update" else "আপডেট করুন")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showEditDialog = false }
+                ) {
+                    Text(
+                        text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Cancel" else "বাতিল",
+                        color = Color.Gray
+                    )
+                }
+            },
+            containerColor = Color.White
+        )
+    }
+
+    if (showDeleteConfirmationDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmationDialog = false },
+            title = {
+                Text(
+                    text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Delete Post" else "পোস্ট মুছে ফেলুন",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color.Black
+                )
+            },
+            text = {
+                Text(
+                    text = if (com.example.viewmodel.GlobalLanguage.isEnglish) {
+                        "Are you sure you want to delete this post? This will permanently delete the post from your feed, Telegram, and Instagram accounts."
+                    } else {
+                        "আপনি কি নিশ্চিত যে আপনি এই পোস্টটি মুছে ফেলতে চান? এটি স্থায়ীভাবে আপনার ফিড, টেলিগ্রাম এবং ইনস্টাগ্রাম অ্যাকাউন্ট থেকে পোস্টটি মুছে ফেলবে।"
+                    },
+                    fontSize = 14.sp,
+                    color = Color.DarkGray
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmationDialog = false
+                        com.example.VideoStorage.deleteVideo(context, video.docId)
+                        Toast.makeText(
+                            context,
+                            if (com.example.viewmodel.GlobalLanguage.isEnglish) {
+                                "Post successfully deleted from your feed, Telegram, and Instagram accounts!"
+                            } else {
+                                "পোস্টটি আপনার ফিড, টেলিগ্রাম এবং ইনস্টাগ্রাম অ্যাকাউন্ট থেকে সফলভাবে ডিলিট করা হয়েছে!"
+                            },
+                            Toast.LENGTH_LONG
+                        ).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text(
+                        text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Delete" else "মুছে ফেলুন",
+                        color = Color.White
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteConfirmationDialog = false }
+                ) {
+                    Text(
+                        text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Cancel" else "বাতিল",
+                        color = Color.Gray
+                    )
+                }
+            },
+            containerColor = Color.White
+        )
     }
 }
 

@@ -48,7 +48,7 @@ fun VideoProfileScreen(
     
     val myVideosOnly = remember(userVideos, currentUser) {
         val uid = currentUser?.uid ?: ""
-        userVideos.filter { it.userId == uid }
+        userVideos.filter { it.userId == uid && it.status == "APPROVED" }
     }
 
     // Pre-fetching for next video

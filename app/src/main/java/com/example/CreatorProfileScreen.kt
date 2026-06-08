@@ -90,12 +90,9 @@ fun CreatorProfileScreen(
 
     LaunchedEffect(creatorUid) {
         isLoading = true
-        val baseQuery = db.collection("videos").whereEqualTo("userId", creatorUid)
-        val finalQuery = if (currentUser != null && creatorUid == currentUser.uid) {
-            baseQuery
-        } else {
-            baseQuery.whereEqualTo("status", "APPROVED")
-        }
+        val finalQuery = db.collection("videos")
+            .whereEqualTo("userId", creatorUid)
+            .whereEqualTo("status", "APPROVED")
         
         finalQuery.get()
             .addOnSuccessListener { snapshots ->

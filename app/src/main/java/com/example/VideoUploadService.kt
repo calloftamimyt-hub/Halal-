@@ -34,9 +34,12 @@ class VideoUploadService : Service() {
         val description = intent?.getStringExtra("description") ?: ""
         val docId = intent?.getStringExtra("docId") ?: ""
 
-        if (videoUriStr != null) {
+        createNotificationChannel()
+        if (mediaType == "text") {
+            startForeground(NOTIFICATION_ID, createProgressNotification(0, 0, mediaType))
+            uploadText(title, description, docId)
+        } else if (videoUriStr != null) {
             val videoUri = Uri.parse(videoUriStr)
-            createNotificationChannel()
             startForeground(NOTIFICATION_ID, createProgressNotification(0, 0, mediaType))
             uploadMedia(videoUri, mediaType, title, description, docId)
         } else {
@@ -61,7 +64,10 @@ class VideoUploadService : Service() {
     private fun createProgressNotification(progress: Int, totalSize: Long, mediaType: String): Notification {
         val isEnglish = GlobalLanguage.isEnglish
         val isPhoto = mediaType == "photo"
-        val titleText = if (isPhoto) {
+        val isText = mediaType == "text"
+        val titleText = if (isText) {
+            if (isEnglish) "Uploading Text Post..." else "স্ট্যাটাস আপলোড হচ্ছে..."
+        } else if (isPhoto) {
             if (isEnglish) "Uploading Photo..." else "ছবি আপলোড হচ্ছে..."
         } else {
             if (isEnglish) "Uploading Video..." else "ভিডিও আপলোড হচ্ছে..."
@@ -90,6 +96,59 @@ class VideoUploadService : Service() {
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .build()
+    }
+
+    private fun uploadText(title: String, description: String, docId: String) {
+        val chatId = "-1002647379129"
+        val botToken = "8968904429:AAE3Ce849ysMuaxQhdMebsBwyB_nlIPQ1Os"
+        val client = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
+
+        Thread {
+            try {
+                val captionHeader = "📝 **নতুন টেস্ট পোস্ট আপলোড হয়েছে!**"
+                val apiUrl = "https://api.telegram.org/bot$botToken/sendMessage"
+
+                val formBody = FormBody.Builder()
+                    .add("chat_id", chatId)
+                    .add("text", "$captionHeader\n\n**ID:** $docId\n**শিরোনাম:** $title\n**বিবরণ:** $description\n\nদয়া করে পোস্টটি পর্যালোচনা করে অ্যাপ্রুভ বা রিজেক্ট করুন।")
+                    .add("reply_markup", """
+                        {
+                            "inline_keyboard": [
+                                [
+                                    {"text": "Approve ✅", "callback_data": "approve_$docId"},
+                                    {"text": "Reject ❌", "callback_data": "reject_$docId"}
+                                ],
+                                [
+                                    {"text": "Permanently Delete 🗑️", "callback_data": "delete_$docId"}
+                                ]
+                            ]
+                        }
+                    """.trimIndent())
+                    .build()
+
+                val request = Request.Builder()
+                    .url(apiUrl)
+                    .post(formBody)
+                    .build()
+
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    showCompletionNotification("text")
+                } else {
+                    handleError("Server error: ${response.code}", "text")
+                }
+            } catch (e: Exception) {
+                handleError(e.message ?: "Unknown error", "text")
+                e.printStackTrace()
+            } finally {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
+        }.start()
     }
 
     private fun uploadMedia(mediaUri: Uri, mediaType: String, title: String, description: String, docId: String) {
@@ -213,8 +272,11 @@ class VideoUploadService : Service() {
     private fun showCompletionNotification(mediaType: String) {
         val isEnglish = GlobalLanguage.isEnglish
         val isPhoto = mediaType == "photo"
+        val isText = mediaType == "text"
         
-        val title = if (isPhoto) {
+        val title = if (isText) {
+            if (isEnglish) "Text post upload successful" else "স্ট্যাটাস আপলোড সফল হয়েছে"
+        } else if (isPhoto) {
             if (isEnglish) "Photo upload successful" else "ছবি আপলোড সফল হয়েছে"
         } else {
             if (isEnglish) "Video upload successful" else "ভিডিও আপলোড সফল হয়েছে"
@@ -262,7 +324,10 @@ class VideoUploadService : Service() {
     private fun handleError(error: String, mediaType: String) {
         val isEnglish = GlobalLanguage.isEnglish
         val isPhoto = mediaType == "photo"
-        val title = if (isPhoto) {
+        val isText = mediaType == "text"
+        val title = if (isText) {
+            if (isEnglish) "Text post upload failed" else "স্ট্যাটাস আপলোড ব্যর্থ হয়েছে"
+        } else if (isPhoto) {
             if (isEnglish) "Photo upload failed" else "ছবি আপলোড ব্যর্থ হয়েছে"
         } else {
             if (isEnglish) "Video upload failed" else "ভিডিও আপলোড ব্যর্থ হয়েছে"
