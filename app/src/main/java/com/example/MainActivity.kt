@@ -296,6 +296,7 @@ class MainActivity : ComponentActivity() {
                         var isNotificationsPageOpen by remember { mutableStateOf(false) }
                         var isAddAlarmPageOpen by remember { mutableStateOf(false) }
                         var isParentalPageOpen by remember { mutableStateOf(false) }
+                        var isPrayerPageOpen by remember { mutableStateOf(false) }
                         
                         val alarmViewModel: com.example.viewmodel.AlarmViewModel = remember { 
                             com.example.viewmodel.AlarmViewModel(context) 
@@ -323,7 +324,7 @@ class MainActivity : ComponentActivity() {
                         }
 
                         val view = LocalView.current
-                        val isProfileOverlayOpen = selectedCreatorUid != null || isSavedPostsOpen || isFriendsPageOpen || isAlarmPageOpen || isZakatPageOpen || isCalendarPageOpen || isQiblaPageOpen || isNotificationsPageOpen || isAddAlarmPageOpen || isParentalPageOpen
+                        val isProfileOverlayOpen = selectedCreatorUid != null || isSavedPostsOpen || isFriendsPageOpen || isAlarmPageOpen || isZakatPageOpen || isCalendarPageOpen || isQiblaPageOpen || isNotificationsPageOpen || isAddAlarmPageOpen || isParentalPageOpen || isPrayerPageOpen
                         val isDarkStatusBar = (selectedTab == "create") && !isProfileOverlayOpen && FirebaseAuth.getInstance().currentUser != null
                         val isAuthPage = (selectedTab == "create") && FirebaseAuth.getInstance().currentUser == null
                         
@@ -379,6 +380,7 @@ class MainActivity : ComponentActivity() {
                                         HomeScreen(
                                             state = state,
                                             onToggleAlarm = { viewModel.toggleAlarm(context, it) },
+                                            onNavigateToPrayerDetails = { isPrayerPageOpen = true },
                                             onNavigateToTracker = { selectedTab = "tracker" },
                                             onNavigateToQuran = { selectedTab = "quran" },
                                             onNavigateToLocation = { selectedTab = "location" },
@@ -559,6 +561,18 @@ class MainActivity : ComponentActivity() {
                                  if (isQiblaPageOpen) {
                                     QiblaCompassScreen(
                                         onBack = { isQiblaPageOpen = false }
+                                    )
+                                }
+                                AnimatedVisibility(
+                                    visible = isPrayerPageOpen,
+                                    enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }, animationSpec = androidx.compose.animation.core.tween(400)) + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(400)),
+                                    exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }, animationSpec = androidx.compose.animation.core.tween(400)) + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(400))
+                                ) {
+                                    PrayerScreen(
+                                        state = state,
+                                        onBack = { isPrayerPageOpen = false },
+                                        onToggleAlarm = { alarmId -> viewModel.toggleAlarm(context, alarmId) },
+                                        onOpenAlarmPage = { isAlarmPageOpen = true }
                                     )
                                 }
                             }
@@ -746,6 +760,7 @@ fun AppBottomNavigation(selectedTab: String, isDark: Boolean, onTabSelected: (St
 fun HomeScreen(
     state: com.example.viewmodel.ViewState, 
     onToggleAlarm: (String) -> Unit, 
+    onNavigateToPrayerDetails: () -> Unit,
     onNavigateToTracker: () -> Unit,
     onNavigateToQuran: () -> Unit,
     onNavigateToLocation: () -> Unit,
@@ -795,7 +810,7 @@ fun HomeScreen(
 
         // Hero Section
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp).clickable { onNavigateToPrayerDetails() },
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -876,108 +891,6 @@ fun HomeScreen(
                 title = if (GlobalLanguage.isEnglish) "Sehri Last Time" else "সাহরির শেষ সময়", 
                 time = state.prayerTimes?.fajr?.toBengali() ?: "--:--"
             )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Prayer Times Section Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(LocalAppStrings.current.prayer_times_title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-            Text(
-                if (GlobalLanguage.isEnglish) "Set Alarm >" else "অ্যালার্ম সেট করুন >", 
-                color = PrimaryGreen, 
-                fontSize = 12.sp, 
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.clickable { onOpenAlarmPage() }
-            )
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-            state.prayerTimes?.let { times ->
-                val prayers = listOf(
-                    Quad("Fajr", if (GlobalLanguage.isEnglish) "Fajr" else "ফজর", times.fajr, times.sunrise),
-                    Quad("Dhuhr", if (GlobalLanguage.isEnglish) "Dhuhr" else "যোহর", times.dhuhr, times.asr),
-                    Quad("Asr", if (GlobalLanguage.isEnglish) "Asr" else "আসর", times.asr, times.maghrib),
-                    Quad("Maghrib", if (GlobalLanguage.isEnglish) "Maghrib" else "মাগরিব", times.maghrib, times.isha),
-                    Quad("Isha", if (GlobalLanguage.isEnglish) "Isha" else "এশা", times.isha, times.fajr)
-                )
-
-                val displayPrayers = if (isPrayerExpanded) {
-                    prayers
-                } else {
-                    val currentIndex = prayers.indexOfFirst { it.id == state.currentPrayerName }
-                    if (currentIndex != -1) {
-                        listOf(
-                            prayers[currentIndex],
-                            prayers[(currentIndex + 1) % prayers.size]
-                        )
-                    } else {
-                        // Fallback if none active (e.g. current is Duha)
-                        val nextIdx = prayers.indexOfFirst { it.id == state.nextPrayerName }
-                        if (nextIdx != -1) {
-                            listOf(
-                                prayers[nextIdx],
-                                prayers[(nextIdx + 1) % prayers.size]
-                            )
-                        } else {
-                            prayers.take(2)
-                        }
-                    }
-                }
-                
-                Column {
-                    displayPrayers.forEachIndexed { index, p ->
-                        PrayerRow(
-                            p.name, 
-                            p.startTime, 
-                            p.endTime,
-                            isAlarmOn = state.alarms[p.id] == true, 
-                            isActive = p.id == state.currentPrayerName, 
-                            onToggleAlarm = { onToggleAlarm(p.id) },
-                            onOpenAlarmPage = onOpenAlarmPage
-                        )
-                        if (index < displayPrayers.size - 1) {
-                            HorizontalDivider(color = BgLight, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 4.dp))
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    // See All / Show Less Button
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(PrimaryGreen.copy(alpha = 0.05f))
-                            .clickable { isPrayerExpanded = !isPrayerExpanded },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                if (isPrayerExpanded) LocalAppStrings.current.collapse else LocalAppStrings.current.see_all,
-                                color = PrimaryGreen,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                if (isPrayerExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                contentDescription = null,
-                                tint = PrimaryGreen,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
-            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
