@@ -71,6 +71,7 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalPermissionsApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        VideoCacheManager.initCacheAsync(applicationContext)
         handleIntent(intent)
         enableEdgeToEdge()
         setContent {
@@ -414,7 +415,16 @@ class MainActivity : ComponentActivity() {
                                     if (isProfileOverlayOpen) {
                                         selectedCreatorUid = null
                                         isSavedPostsOpen = false
+                                        isFriendsPageOpen = false
+                                        isAlarmPageOpen = false
+                                        isZakatPageOpen = false
+                                        isCalendarPageOpen = false
+                                        isQiblaPageOpen = false
                                         isNotificationsPageOpen = false
+                                        isAddAlarmPageOpen = false
+                                        isParentalPageOpen = false
+                                        isPrayerPageOpen = false
+                                        isCreateCircleAlertOpen = false
                                     }
                                 } 
                             }

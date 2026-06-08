@@ -2,6 +2,7 @@ package com.example
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -49,6 +50,9 @@ fun CreateCircleAlertScreen(
     onBack: () -> Unit,
     onSubmit: (CircleAlert) -> Unit
 ) {
+    BackHandler(enabled = true) {
+        onBack()
+    }
     val context = LocalContext.current
     val isEnglish = GlobalLanguage.isEnglish
     val coroutineScope = rememberCoroutineScope()
@@ -138,10 +142,13 @@ fun CreateCircleAlertScreen(
                     shape = RoundedCornerShape(12.dp),
                     readOnly = true,
                     trailingIcon = {
-                        IconButton(onClick = { showCategoryMenu = true }) {
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                        }
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                     }
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable { showCategoryMenu = true }
                 )
                 DropdownMenu(
                     expanded = showCategoryMenu,
@@ -170,10 +177,13 @@ fun CreateCircleAlertScreen(
                     shape = RoundedCornerShape(12.dp),
                     readOnly = true,
                     trailingIcon = {
-                        IconButton(onClick = { showDistrictMenu = true }) {
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                        }
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                     }
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable { showDistrictMenu = true }
                 )
                 DropdownMenu(
                     expanded = showDistrictMenu,

@@ -51,6 +51,22 @@ fun VideoProfileScreen(
         userVideos.filter { it.userId == uid }
     }
 
+    // Pre-fetching for next video
+    LaunchedEffect(playingVideoId, myVideosOnly) {
+        if (playingVideoId != null) {
+            val currentIndex = myVideosOnly.indexOfFirst { it.docId == playingVideoId }
+            if (currentIndex != -1 && currentIndex < myVideosOnly.size - 1) {
+                val nextVideo = myVideosOnly[currentIndex + 1]
+                if (nextVideo.mediaType != "text") {
+                    val nextUrl = nextVideo.videoUri
+                    if (nextUrl.isNotEmpty() && nextUrl.startsWith("http")) {
+                         VideoCacheManager.prefetchVideo(context, nextUrl)
+                    }
+                }
+            }
+        }
+    }
+
     var followerCount by remember { mutableIntStateOf(0) }
     var followingCount by remember { mutableIntStateOf(0) }
 

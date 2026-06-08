@@ -98,7 +98,9 @@ data class VideoItem(
     val country: String = "Bangladesh",
     val location: String = "All Bangladesh",
     val isCircleAlert: Boolean = false,
-    val alertCategory: String = ""
+    val alertCategory: String = "",
+    val backgroundStyle: String = "",
+    val visibilityMode: String = "public"
 )
 
 // dummyVideos removed to only show user-uploaded videos
@@ -182,8 +184,36 @@ fun VideoScreen(
     val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
     val currentUserId = remember { currentUser?.uid ?: "" }
     
-    val userVideosList = remember(approvedVideos, myVideos) {
+    var followedCreatorIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    
+    // Listen to followed creators for privacy/followers filtering
+    DisposableEffect(currentUserId) {
+        if (currentUserId.isEmpty()) return@DisposableEffect onDispose {}
+        
+        val listener = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            .collection("follows")
+            .whereEqualTo("followerId", currentUserId)
+            .addSnapshotListener { snapshot, _ ->
+                if (snapshot != null) {
+                    val set = snapshot.documents.mapNotNull { it.getString("creatorId") }.toSet()
+                    followedCreatorIds = set
+                }
+            }
+        onDispose {
+            listener.remove()
+        }
+    }
+    
+    val userVideosList = remember(approvedVideos, myVideos, followedCreatorIds, currentUserId) {
         val combined = (approvedVideos + myVideos).distinctBy { it.docId }
+            .filter { video ->
+                val vis = video.visibilityMode ?: "public"
+                when (vis) {
+                    "private" -> video.userId == currentUserId
+                    "followers" -> video.userId == currentUserId || followedCreatorIds.contains(video.userId)
+                    else -> true
+                }
+            }
         // Prioritize Circle Alerts at the top, then sort by timestamp
         combined.sortedWith(
             compareByDescending<UserUploadedVideo> { it.isCircleAlert ?: false }
@@ -197,6 +227,16 @@ fun VideoScreen(
     
     var isVideosLoading by remember { mutableStateOf(true) }
     var showTextUploadDialog by remember { mutableStateOf(false) }
+    var quickPostImageUri by remember { mutableStateOf<Uri?>(null) }
+    
+    val quickPostImageLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            quickPostImageUri = uri
+            showTextUploadDialog = true
+        }
+    }
     
     // Pagination state
     var lastVisibleDoc by remember { mutableStateOf<com.google.firebase.firestore.DocumentSnapshot?>(null) }
@@ -339,7 +379,9 @@ fun VideoScreen(
                     country = uv.country ?: "Bangladesh",
                     location = uv.location ?: "All Bangladesh",
                     isCircleAlert = uv.isCircleAlert ?: false,
-                    alertCategory = uv.alertCategory ?: ""
+                    alertCategory = uv.alertCategory ?: "",
+                    backgroundStyle = uv.backgroundStyle ?: "",
+                    visibilityMode = uv.visibilityMode ?: "public"
                 )
              }
         }
@@ -378,6 +420,22 @@ fun VideoScreen(
 
     var playingVideoId by remember { 
         mutableStateOf(null as String?) 
+    }
+
+    // Pre-fetching logic: Pre-load the next video in the list
+    LaunchedEffect(playingVideoId, combinedVideos) {
+        if (playingVideoId != null) {
+            val currentIndex = combinedVideos.indexOfFirst { it.docId == playingVideoId }
+            if (currentIndex != -1 && currentIndex < combinedVideos.size - 1) {
+                val nextVideo = combinedVideos[currentIndex + 1]
+                if (nextVideo.mediaType != "text") {
+                    val nextUrl = nextVideo.url.ifEmpty { nextVideo.videoUri }
+                    if (nextUrl.isNotEmpty() && !nextUrl.startsWith("content://")) {
+                         VideoCacheManager.prefetchVideo(context, nextUrl)
+                    }
+                }
+            }
+        }
     }
 
     // Lazy List state to track visible items and handle autoplay on scroll
@@ -468,7 +526,19 @@ fun VideoScreen(
             onNavigateToFriends = onNavigateToFriends,
             onNavigateToCreateCircleAlert = onNavigateToCreateCircleAlert,
             onTextQuickPost = { 
-                if (currentUserId.isEmpty()) onRequireLogin() else showTextUploadDialog = true 
+                if (currentUserId.isEmpty()) {
+                    onRequireLogin()
+                } else {
+                    quickPostImageUri = null
+                    showTextUploadDialog = true
+                }
+            },
+            onPhotoQuickPost = {
+                if (currentUserId.isEmpty()) {
+                    onRequireLogin()
+                } else {
+                    quickPostImageLauncher.launch("image/*")
+                }
             }
         )
 
@@ -574,31 +644,58 @@ fun VideoScreen(
 
     if (showTextUploadDialog) {
         TextPostDialog(
-            onDismiss = { showTextUploadDialog = false },
-            onPost = { content ->
+            initialImageUri = quickPostImageUri,
+            onDismiss = { 
                 showTextUploadDialog = false
+                quickPostImageUri = null
+            },
+            onPost = { content, bgStyle, visibility, imageUri ->
+                showTextUploadDialog = false
+                quickPostImageUri = null
                 val docId = java.util.UUID.randomUUID().toString()
                 val profileName = sharedPrefs.getString("name", "Someone") ?: "Someone"
                 
+                val hasPhoto = imageUri != null
                 val videoRecord = UserUploadedVideo(
                     docId = docId,
                     userId = currentUserId,
                     author = profileName,
-                    title = if (content.length > 30) content.take(30) + "..." else content,
+                    title = if (content.length > 30) content.take(30) + "..." else if (hasPhoto) "Photo Post" else "Text Post",
                     description = content,
                     timestamp = System.currentTimeMillis(),
-                    status = "APPROVED",
-                    mediaType = "text",
-                    videoUri = "text_post"
+                    status = "PENDING", // Needs admin approval for photo, or APPROVED for text
+                    mediaType = if (hasPhoto) "photo" else "text",
+                    videoUri = if (hasPhoto) imageUri.toString() else "text_post",
+                    backgroundStyle = bgStyle,
+                    visibilityMode = visibility
                 )
                 
-                com.google.firebase.firestore.FirebaseFirestore.getInstance()
-                    .collection("videos")
-                    .document(docId)
-                    .set(videoRecord)
-                    .addOnSuccessListener {
-                        Toast.makeText(context, if (com.example.viewmodel.GlobalLanguage.isEnglish) "Posted successfully!" else "সাফল্যের সাথে পোস্ট করা হয়েছে!", Toast.LENGTH_SHORT).show()
+                if (hasPhoto) {
+                    // Save to local & start upload service in background for photo
+                    com.example.VideoStorage.saveVideo(context, videoRecord)
+                    val intent = android.content.Intent(context, com.example.VideoUploadService::class.java).apply {
+                        putExtra("videoUri", imageUri.toString())
+                        putExtra("mediaType", "photo")
+                        putExtra("title", videoRecord.title)
+                        putExtra("description", content)
+                        putExtra("docId", docId)
                     }
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        context.startForegroundService(intent)
+                    } else {
+                        context.startService(intent)
+                    }
+                    Toast.makeText(context, if (com.example.viewmodel.GlobalLanguage.isEnglish) "Photo posting started in background..." else "ছবি পোস্ট করা শুরু হয়েছে...", Toast.LENGTH_SHORT).show()
+                } else {
+                    // For pure text post, let's auto-approve and write straight to Firestore
+                    com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                        .collection("videos")
+                        .document(docId)
+                        .set(videoRecord.copy(status = "APPROVED"))
+                        .addOnSuccessListener {
+                            Toast.makeText(context, if (com.example.viewmodel.GlobalLanguage.isEnglish) "Posted successfully!" else "সাফল্যের সাথে পোস্ট করা হয়েছে!", Toast.LENGTH_SHORT).show()
+                        }
+                }
             }
         )
     }
@@ -705,7 +802,13 @@ fun VideoPlayer(
             return@DisposableEffect onDispose {}
         }
         
-        val player = ExoPlayer.Builder(context).build().apply {
+        val cacheDataSourceFactory = VideoCacheManager.getCacheDataSourceFactory(context)
+        val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context)
+            .setDataSourceFactory(cacheDataSourceFactory)
+
+        val player = ExoPlayer.Builder(context)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .build().apply {
             setMediaItem(MediaItem.fromUri(Uri.parse(resolvedUrl)))
             repeatMode = Player.REPEAT_MODE_ONE
             playWhenReady = true
@@ -1208,7 +1311,8 @@ fun VideoTopIcons(
     isLoading: Boolean = false,
     onNavigateToFriends: () -> Unit = {},
     onNavigateToCreateCircleAlert: () -> Unit = {},
-    onTextQuickPost: () -> Unit = {}
+    onTextQuickPost: () -> Unit = {},
+    onPhotoQuickPost: () -> Unit = {}
 ) {
     val isDarkTheme = false
     val backgroundModifier = Modifier.background(Color.White)
@@ -1318,7 +1422,7 @@ fun VideoTopIcons(
                 QuickPostBar(
                     currentUserId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "",
                     onTextPostClick = onTextQuickPost,
-                    onPhotoPostClick = onNavigateToCreateCircleAlert
+                    onPhotoPostClick = onPhotoQuickPost
                 )
                 HorizontalDivider(
                     color = Color(0xFFF0F2F5),
@@ -1522,21 +1626,31 @@ fun FacebookVideoPostCard(
 
             // Media Content Container
             if (video.mediaType == "text") {
+                val bgStyle = video.backgroundStyle ?: ""
+                val bgBrush = getPostBackgroundBrush(bgStyle)
+                val isStyled = bgBrush != null
+                
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .background(Color(0xFFF0F2F5), RoundedCornerShape(12.dp))
-                        .padding(24.dp),
+                        .then(
+                            if (isStyled) {
+                                Modifier.background(bgBrush!!, RoundedCornerShape(12.dp))
+                            } else {
+                                Modifier.background(Color(0xFFF0F2F5), RoundedCornerShape(12.dp))
+                            }
+                        )
+                        .padding(horizontal = 24.dp, vertical = if (isStyled) 48.dp else 24.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = video.description,
-                        fontSize = 18.sp,
-                        color = Color.Black,
+                        fontSize = if (isStyled) 22.sp else 18.sp,
+                        color = getPostBackgroundTextColor(bgStyle),
                         textAlign = TextAlign.Center,
-                        fontWeight = FontWeight.Normal,
-                        lineHeight = 26.sp
+                        fontWeight = if (isStyled) FontWeight.Bold else FontWeight.Normal,
+                        lineHeight = if (isStyled) 30.sp else 26.sp
                     )
                 }
             } else {
@@ -2099,13 +2213,59 @@ fun QuickPostBar(
     }
 }
 
+data class FacebookBackground(
+    val id: String,
+    val nameEn: String,
+    val nameBn: String,
+    val brush: androidx.compose.ui.graphics.Brush?,
+    val previewColors: List<Color>,
+    val textColor: Color
+)
+
+private val facebookBackgrounds = listOf(
+    FacebookBackground("none", "Classic", "ক্লাসিক", null, listOf(Color.White), Color.Black),
+    FacebookBackground("gradient_sunset", "Sunset", "সূর্যাস্ত", androidx.compose.ui.graphics.Brush.linearGradient(colors = listOf(Color(0xFFFF512F), Color(0xFFDD2476))), listOf(Color(0xFFFF512F), Color(0xFFDD2476)), Color.White),
+    FacebookBackground("gradient_ocean", "Ocean", "মহাসমুদ্র", androidx.compose.ui.graphics.Brush.linearGradient(colors = listOf(Color(0xFF2193B0), Color(0xFF6DD5ED))), listOf(Color(0xFF2193B0), Color(0xFF6DD5ED)), Color.White),
+    FacebookBackground("gradient_purple", "Neon", "নিয়ন", androidx.compose.ui.graphics.Brush.linearGradient(colors = listOf(Color(0xFF8A2387), Color(0xFFE94057), Color(0xFFF27121))), listOf(Color(0xFF8A2387), Color(0xFFE94057)), Color.White),
+    FacebookBackground("gradient_green", "Fresh", "তাজা", androidx.compose.ui.graphics.Brush.linearGradient(colors = listOf(Color(0xFF11998E), Color(0xFF38EF7D))), listOf(Color(0xFF11998E), Color(0xFF38EF7D)), Color.White),
+    FacebookBackground("gradient_dark", "Charcoal", "চারকোল", androidx.compose.ui.graphics.Brush.linearGradient(colors = listOf(Color(0xFF1F1C2C), Color(0xFF928DAB))), listOf(Color(0xFF1F1C2C), Color(0xFF928DAB)), Color.White),
+    FacebookBackground("gradient_pink", "Sakura", "সাকুরা", androidx.compose.ui.graphics.Brush.linearGradient(colors = listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF))), listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF)), Color.White),
+    FacebookBackground("gradient_plum", "Plum", "প্লাম", androidx.compose.ui.graphics.Brush.linearGradient(colors = listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0))), listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0)), Color.White),
+    FacebookBackground("gradient_amber", "Amber", "অ্যাম্বার", androidx.compose.ui.graphics.Brush.linearGradient(colors = listOf(Color(0xFFF2994A), Color(0xFFF2C94C))), listOf(Color(0xFFF2994A), Color(0xFFF2C94C)), Color.White),
+    FacebookBackground("gradient_emerald", "Emerald", "মরকত", androidx.compose.ui.graphics.Brush.linearGradient(colors = listOf(Color(0xFF004B23), Color(0xFF38B000))), listOf(Color(0xFF004B23), Color(0xFF38B000)), Color.White)
+)
+
+private fun getPostBackgroundBrush(styleId: String): androidx.compose.ui.graphics.Brush? {
+    return facebookBackgrounds.firstOrNull { it.id == styleId }?.brush
+}
+
+private fun getPostBackgroundTextColor(styleId: String): Color {
+    return facebookBackgrounds.firstOrNull { it.id == styleId }?.textColor ?: Color.Black
+}
+
 @Composable
 fun TextPostDialog(
+    initialImageUri: Uri? = null,
     onDismiss: () -> Unit,
-    onPost: (String) -> Unit
+    onPost: (String, String, String, Uri?) -> Unit
 ) {
     var text by remember { mutableStateOf("") }
+    var backgroundStyle by remember { mutableStateOf("none") }
+    var visibilityMode by remember { mutableStateOf("public") }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(initialImageUri) }
+    var showVisibilityMenu by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
     val isEnglish = com.example.viewmodel.GlobalLanguage.isEnglish
+
+    val galleryLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            selectedImageUri = uri
+            backgroundStyle = "none" // Reset background theme if image is selected
+        }
+    }
 
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
@@ -2119,37 +2279,57 @@ fun TextPostDialog(
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
             Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-                // Header
+                // Header Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Black)
                     }
                     Text(
-                        text = if (isEnglish) "Create Text Post" else "টেক্সট পোস্ট তৈরি করুন",
+                        text = if (isEnglish) "Create Post" else "পোস্ট তৈরি করুন",
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
-                        modifier = Modifier.padding(start = 8.dp)
+                        color = Color.Black,
+                        modifier = Modifier.padding(start = 4.dp)
                     )
                     Spacer(modifier = Modifier.weight(1f))
+                    
+                    // Thinner, aesthetic Post button
                     Button(
-                        onClick = { if (text.trim().isNotEmpty()) onPost(text) },
-                        enabled = text.trim().isNotEmpty(),
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
-                        shape = RoundedCornerShape(8.dp)
+                        onClick = { 
+                            if (text.trim().isNotEmpty() || selectedImageUri != null) {
+                                onPost(text, backgroundStyle, visibilityMode, selectedImageUri) 
+                            }
+                        },
+                        enabled = text.trim().isNotEmpty() || selectedImageUri != null,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PrimaryGreen,
+                            disabledContainerColor = Color(0xFFE2E8F0)
+                        ),
+                        shape = RoundedCornerShape(18.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                        modifier = Modifier.height(32.dp)
                     ) {
-                        Text(if (isEnglish) "Post" else "পোস্ট করুন")
+                        Text(
+                            text = if (isEnglish) "Post" else "পোস্ট",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (text.trim().isNotEmpty() || selectedImageUri != null) Color.White else Color.Gray
+                        )
                     }
                 }
                 
                 HorizontalDivider(color = Color(0xFFF0F2F5))
                 
-                // Content area
-                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                // Profile & Privacy Dropdown
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     ProfileLogoDisplay(
                         userId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "",
                         modifier = Modifier.size(45.dp)
@@ -2157,33 +2337,271 @@ fun TextPostDialog(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         val userName = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.displayName ?: "User"
-                        Text(userName, fontWeight = FontWeight.Bold)
-                        Text(
-                            if (isEnglish) "Public" else "পাবলিক",
-                            fontSize = 12.sp,
-                            color = Color.Gray
-                        )
+                        Text(userName, fontWeight = FontWeight.Bold, color = Color.Black)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        
+                        // Sleek Clickable Privacy Capsule
+                        Box {
+                            Surface(
+                                onClick = { showVisibilityMenu = true },
+                                modifier = Modifier.height(24.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFFF0F2F5),
+                                border = BorderStroke(0.5.dp, Color(0xFFD1D5DB))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val icon = when (visibilityMode) {
+                                        "private" -> Icons.Default.Lock
+                                        "followers" -> Icons.Default.People
+                                        else -> Icons.Default.Public
+                                    }
+                                    val label = when (visibilityMode) {
+                                        "private" -> if (isEnglish) "Only Me" else "শুধুমাত্র আমি"
+                                        "followers" -> if (isEnglish) "Followers" else "ফলোয়ারদের জন্য"
+                                        else -> if (isEnglish) "Public" else "পাবলিক"
+                                    }
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        tint = Color.DarkGray,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        color = Color.DarkGray,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDropDown,
+                                        contentDescription = null,
+                                        tint = Color.DarkGray,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
+                            }
+                            
+                            DropdownMenu(
+                                expanded = showVisibilityMenu,
+                                onDismissRequest = { showVisibilityMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(if (isEnglish) "Public (Everyone)" else "পাবলিক (সবাই)") },
+                                    leadingIcon = { Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                    onClick = {
+                                        visibilityMode = "public"
+                                        showVisibilityMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (isEnglish) "Followers Only" else "শুধুমাত্র ফলোয়াররা") },
+                                    leadingIcon = { Icon(Icons.Default.People, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                    onClick = {
+                                        visibilityMode = "followers"
+                                        showVisibilityMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (isEnglish) "Only Me" else "শুধুমাত্র আমি") },
+                                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                    onClick = {
+                                        visibilityMode = "private"
+                                        showVisibilityMenu = false
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
                 
-                TextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    placeholder = { 
+                // Text Writing and Background display container
+                val isStyled = backgroundStyle != "none" && selectedImageUri == null
+                val bgBrush = if (isStyled) getPostBackgroundBrush(backgroundStyle) else null
+                
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = 16.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(
+                                    if (isStyled) {
+                                        Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(bgBrush!!)
+                                    } else {
+                                        Modifier.weight(1f)
+                                    }
+                                )
+                                .padding(if (isStyled) 20.dp else 0.dp),
+                            contentAlignment = if (isStyled) Alignment.Center else Alignment.TopStart
+                        ) {
+                            TextField(
+                                value = text,
+                                onValueChange = { text = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = {
+                                    Text(
+                                        text = if (isEnglish) "What's on your mind?" else "আপনার মনের কথা শেয়ার করুন...",
+                                        fontSize = if (isStyled) 24.sp else 20.sp,
+                                        fontWeight = if (isStyled) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isStyled) Color.White.copy(alpha = 0.6f) else Color.Gray,
+                                        textAlign = if (isStyled) TextAlign.Center else TextAlign.Start,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                },
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    focusedTextColor = if (isStyled) Color.White else Color.Black,
+                                    unfocusedTextColor = if (isStyled) Color.White else Color.Black
+                                ),
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    fontSize = if (isStyled) 24.sp else 20.sp,
+                                    fontWeight = if (isStyled) FontWeight.Bold else FontWeight.Normal,
+                                    textAlign = if (isStyled) TextAlign.Center else TextAlign.Start
+                                )
+                            )
+                        }
+                        
+                        // Selected Image Preview (rendered if photo attached)
+                        if (selectedImageUri != null) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                                    .padding(vertical = 8.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                coil.compose.AsyncImage(
+                                    model = selectedImageUri,
+                                    contentDescription = "Selected Photo Preview",
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                
+                                IconButton(
+                                    onClick = { selectedImageUri = null },
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(8.dp)
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Black.copy(alpha = 0.6f))
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remove Image",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Quick Theme Picker (only if no image is selected)
+                if (selectedImageUri == null) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Text(
-                            if (isEnglish) "What's on your mind?" else "আপনার মনের কথা শেয়ার করুন...",
-                            fontSize = 20.sp
-                        ) 
-                    },
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    ),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 20.sp)
-                )
+                            text = if (isEnglish) "Choose Background Theme:" else "পটভূমি থিম নির্বাচন করুন:",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        androidx.compose.foundation.lazy.LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(facebookBackgrounds) { bg ->
+                                val isSelected = backgroundStyle == bg.id
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .border(
+                                            width = if (isSelected) 3.dp else 1.dp,
+                                            color = if (isSelected) PrimaryGreen else Color(0xFFD1D5DB),
+                                            shape = CircleShape
+                                        )
+                                        .clickable {
+                                            backgroundStyle = bg.id
+                                        }
+                                        .then(
+                                            if (bg.brush != null) {
+                                                Modifier.background(bg.brush)
+                                            } else {
+                                                Modifier.background(Color(0xFFF3F4F6))
+                                            }
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (bg.id == "none") {
+                                        Icon(
+                                            imageVector = Icons.Default.Block,
+                                            contentDescription = "None",
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    } else if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    HorizontalDivider(color = Color(0xFFF0F2F5), modifier = Modifier.padding(top = 4.dp))
+                }
+                
+                // Add to Post toolbar (footer attachment options button)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .height(50.dp)
+                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isEnglish) "Add to your post" else "আপনার পোস্টে ছবি যোগ করুন",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.Gray,
+                        modifier = Modifier.weight(1f)
+                    )
+                    
+                    IconButton(onClick = { galleryLauncher.launch("image/*") }) {
+                        Icon(
+                            imageVector = Icons.Default.Image,
+                            contentDescription = "Select Photo",
+                            tint = Color(0xFF4CAF50),
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
             }
         }
     }

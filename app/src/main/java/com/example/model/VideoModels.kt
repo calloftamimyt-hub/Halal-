@@ -30,5 +30,7 @@ data class UserUploadedVideo(
     val location: String = "All Bangladesh",
     val isCircleAlert: Boolean = false,
     val alertCategory: String = "", // e.g. Lost, Blood, Accident
-    val isRegionalNotificationSent: Boolean = false
+    val isRegionalNotificationSent: Boolean = false,
+    val backgroundStyle: String = "", // background style ID for text posts
+    val visibilityMode: String = "public" // "public", "followers", "private"
 )

@@ -71,6 +71,22 @@ fun CreatorProfileScreen(
     var editingVideo by remember { mutableStateOf<UserUploadedVideo?>(null) }
     var deletingVideo by remember { mutableStateOf<UserUploadedVideo?>(null) }
     var playingVideoId by remember { mutableStateOf<String?>(null) }
+    
+    // Video Pre-fetching
+    LaunchedEffect(playingVideoId, creatorVideos) {
+        if (playingVideoId != null) {
+            val currentIndex = creatorVideos.indexOfFirst { it.docId == playingVideoId }
+            if (currentIndex != -1 && currentIndex < creatorVideos.size - 1) {
+                val nextVideo = creatorVideos[currentIndex + 1]
+                if (nextVideo.mediaType != "text") {
+                    val nextUrl = nextVideo.videoUri
+                    if (nextUrl.isNotEmpty() && nextUrl.startsWith("http")) {
+                         VideoCacheManager.prefetchVideo(context, nextUrl)
+                    }
+                }
+            }
+        }
+    }
 
     LaunchedEffect(creatorUid) {
         isLoading = true
