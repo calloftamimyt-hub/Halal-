@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -75,6 +76,7 @@ fun ProfileLogoDisplay(
 
     Box(
         modifier = modifier
+            .aspectRatio(1f) // Ensure it's always square
             .clip(CircleShape)
             .then(
                 if (showBorder) Modifier.border(1.5.dp, PrimaryGreen, CircleShape) else Modifier
@@ -86,7 +88,8 @@ fun ProfileLogoDisplay(
                 model = displayImageUrl,
                 contentDescription = "Profile Photo",
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().clip(CircleShape)
+                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                placeholder = androidx.compose.ui.graphics.painter.ColorPainter(Color(0xFFE5E7EB))
             )
         } else {
             val (icon, color, bgColor) = when (displayLogoIndex) {

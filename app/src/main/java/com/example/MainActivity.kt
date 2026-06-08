@@ -166,6 +166,65 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                     } else {
+                        // Real-time Circle Alert Regional Notification Listener
+                        LaunchedEffect(context) {
+                            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                            val sharedPrefs = context.getSharedPreferences("profile_prefs", Activity.MODE_PRIVATE)
+                            val userDistrict = sharedPrefs.getString("location", "All Bangladesh") ?: "All Bangladesh"
+                            val trackerDb = com.example.database.TrackerDatabase.getDatabase(context)
+                            val notificationDao = trackerDb.notificationDao()
+                            
+                            db.collection("videos")
+                                .whereEqualTo("isCircleAlert", true)
+                                .whereEqualTo("status", "APPROVED")
+                                .addSnapshotListener { snapshots, e ->
+                                    if (e != null) return@addSnapshotListener
+                                    if (snapshots != null) {
+                                        CoroutineScope(Dispatchers.IO).launch {
+                                            for (doc in snapshots.documentChanges) {
+                                                if (doc.type == com.google.firebase.firestore.DocumentChange.Type.ADDED) {
+                                                    val data = doc.document.data
+                                                    val alertLocation = data["location"] as? String ?: "All Bangladesh"
+                                                    val title = data["title"] as? String ?: "Alert"
+                                                    val category = data["alertCategory"] as? String ?: ""
+                                                    val docId = doc.document.id
+                                                    
+                                                    // Only notify if location matches or it's nationwide, and not already notified
+                                                    if ((alertLocation == "All Bangladesh" || alertLocation == userDistrict) && 
+                                                        notificationDao.countByRemoteId("alert_$docId") == 0) {
+                                                        
+                                                        val isEnglish = GlobalLanguage.isEnglish
+                                                        val notifTitle = if (isEnglish) "🔴 Real-time Alert: $title" else "🔴 রিয়েল-টাইম অ্যালার্ট: $title"
+                                                        val notifBody = if (isEnglish) "Area: $alertLocation | Type: $category" else "এলাকা: $alertLocation | ধরন: $category"
+                                                        
+                                                        val entity = com.example.database.NotificationEntity(
+                                                            title = notifTitle,
+                                                            body = notifBody,
+                                                            timestamp = System.currentTimeMillis(),
+                                                            type = "GENERAL",
+                                                            actorName = data["author"] as? String ?: "Halal Circle",
+                                                            remoteId = "alert_$docId"
+                                                        )
+                                                        notificationDao.insertNotification(entity)
+                                                        
+                                                        // Show push notification
+                                                        val ctx = context
+                                                        val notifManager = ctx.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+                                                        val builder = androidx.core.app.NotificationCompat.Builder(ctx, "halal_circle_notifs")
+                                                            .setSmallIcon(R.drawable.ic_launcher_foreground)
+                                                            .setContentTitle(notifTitle)
+                                                            .setContentText(notifBody)
+                                                            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                                                            .setAutoCancel(true)
+                                                        notifManager.notify("alert_$docId".hashCode(), builder.build())
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                        }
+
                         val viewModel: PrayerViewModel = viewModel()
                         val state by viewModel.state.collectAsState()
                         

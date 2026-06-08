@@ -95,7 +95,8 @@ data class VideoItem(
     val contactNumber: String = "",
     val country: String = "Bangladesh",
     val location: String = "All Bangladesh",
-    val isCircleAlert: Boolean = false
+    val isCircleAlert: Boolean = false,
+    val alertCategory: String = ""
 )
 
 // dummyVideos removed to only show user-uploaded videos
@@ -329,7 +330,8 @@ fun VideoScreen(
                     contactNumber = uv.contactNumber ?: "",
                     country = uv.country ?: "Bangladesh",
                     location = uv.location ?: "All Bangladesh",
-                    isCircleAlert = uv.isCircleAlert ?: false
+                    isCircleAlert = uv.isCircleAlert ?: false,
+                    alertCategory = uv.alertCategory ?: ""
                 )
              }
         }
@@ -1535,12 +1537,22 @@ fun FacebookVideoPostCard(
                             } else {
                                 video.url.ifEmpty { video.videoUri }
                             }
-                            coil.compose.AsyncImage(
-                                model = imageUrl,
-                                contentDescription = "Circle Alert Image",
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize().clickable { onPlayClick() }
-                            )
+                            
+                            var isLoadingImage by remember { mutableStateOf(true) }
+                            
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                coil.compose.AsyncImage(
+                                    model = imageUrl,
+                                    contentDescription = "Circle Alert Image",
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Fit, // Better for alerts to see full image
+                                    modifier = Modifier.fillMaxSize().clickable { onPlayClick() },
+                                    onSuccess = { isLoadingImage = false },
+                                    onError = { isLoadingImage = false }
+                                )
+                                if (isLoadingImage) {
+                                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                                }
+                            }
                         } else {
                             VideoPlayer(
                                 videoItem = video, 
@@ -1582,6 +1594,24 @@ fun FacebookVideoPostCard(
                                         )
                                     }
                                 }
+                            }
+                        }
+
+                        // THE ALERT TAG ON TOP RIGHT
+                        if (video.isCircleAlert) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(12.dp)
+                                    .background(Color.Red, RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "ALERT 🚨" else "অ্যালার্ট 🚨",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
                     }

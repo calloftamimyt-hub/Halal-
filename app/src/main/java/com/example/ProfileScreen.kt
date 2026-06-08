@@ -475,7 +475,7 @@ fun ProfileScreen(
                         ProfileOptionRow(
                             title = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Edit Profile" else "প্রোফাইল এডিট করুন",
                             icon = Icons.Outlined.Edit,
-                            iconColor = Color(0xFF2563EB),
+                            iconColor = Color(0xFF3B82F6), // Vibrant Blue
                             onClick = {
                                 showEditFullScreen = true
                             }
@@ -487,7 +487,7 @@ fun ProfileScreen(
                         ProfileOptionRow(
                             title = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Tracker" else "ট্র্যাকার",
                             icon = Icons.Outlined.CheckCircle,
-                            iconColor = PrimaryGreen,
+                            iconColor = Color(0xFF10B981), // Emerald Green
                             onClick = {
                                 showTrackerHistoryFullScreen = true
                             }
@@ -499,7 +499,7 @@ fun ProfileScreen(
                         ProfileOptionRow(
                             title = "অটো সাইলেন্ট",
                             icon = if (isAutoSilentEnabled) Icons.Filled.VolumeOff else Icons.Outlined.VolumeUp,
-                            iconColor = Color(0xFF8B5CF6),
+                            iconColor = Color(0xFF8B5CF6), // Royal Purple
                             onClick = {
                                 showAutoSilentFullScreen = true
                             }
@@ -511,7 +511,7 @@ fun ProfileScreen(
                         ProfileOptionRow(
                             title = "সোশ্যাল মিডিয়া ব্লকার",
                             icon = Icons.Outlined.AppBlocking,
-                            iconColor = Color(0xFFEF4444),
+                            iconColor = Color(0xFFF43F5E), // Rose Red
                             onClick = {
                                 showSocialMediaBlockerFullScreen = true
                             }
@@ -523,7 +523,7 @@ fun ProfileScreen(
                         ProfileOptionRow(
                             title = "ওয়েবসাইট ব্লকার",
                             icon = Icons.Outlined.Block,
-                            iconColor = Color(0xFFDC2626),
+                            iconColor = Color(0xFFEF4444), // Danger Red
                             onClick = {
                                 showWebsiteBlockerFullScreen = true
                             }
@@ -535,7 +535,7 @@ fun ProfileScreen(
                         ProfileOptionRow(
                             title = "সেভ করা পোস্ট",
                             icon = Icons.Outlined.BookmarkBorder,
-                            iconColor = Color(0xFF9333EA),
+                            iconColor = Color(0xFFA855F7), // Purple
                             onClick = onNavigateToSaved
                         )
 
@@ -545,7 +545,7 @@ fun ProfileScreen(
                         ProfileOptionRow(
                             title = "সেভ করা দোয়া",
                             icon = Icons.Outlined.FavoriteBorder,
-                            iconColor = Color(0xFFEC4899),
+                            iconColor = Color(0xFFEC4899), // Pink
                             onClick = {
                                 activeModalTitle = "সেভ করা দোয়া ক্যাটাগরি"
                                 currentSelectedFeature = "duas"
@@ -558,7 +558,7 @@ fun ProfileScreen(
                         ProfileOptionRow(
                             title = "বুকমার্ক করা আয়াত",
                             icon = Icons.Outlined.MenuBook,
-                            iconColor = Color(0xFF0E7490),
+                            iconColor = Color(0xFF0EA5E9), // Sky Blue
                             onClick = {
                                 activeModalTitle = "বুকমার্ক করা আয়াত কোড"
                                 currentSelectedFeature = "ayahs"
@@ -571,7 +571,7 @@ fun ProfileScreen(
                         ProfileOptionRow(
                             title = "পছন্দের হাদিস",
                             icon = Icons.Outlined.AutoStories,
-                            iconColor = Color(0xFF15803D),
+                            iconColor = Color(0xFF16A34A), // Deep Green
                             onClick = {
                                 activeModalTitle = "পছন্দের হাদিস সম্ভার"
                                 currentSelectedFeature = "hadiths"
@@ -1692,29 +1692,34 @@ fun ProfileOptionRow(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = LocalIndication.current
             )
-            .padding(horizontal = 16.dp, vertical = 12.dp), // elegant, uniform compact iOS-like padding
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .background(iconColor, RoundedCornerShape(10.dp)),
+                    .size(42.dp)
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                            colors = listOf(iconColor.copy(alpha = 0.15f), iconColor.copy(alpha = 0.05f))
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
+                    tint = iconColor,
+                    modifier = Modifier.size(24.dp)
                 )
             }
             Spacer(modifier = Modifier.width(16.dp))
             Text(
                 text = title,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium, // slightly heavier weight for distinct readability
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
                 color = TextDark
             )
         }
@@ -1722,8 +1727,8 @@ fun ProfileOptionRow(
         Icon(
             imageVector = Icons.Default.ChevronRight,
             contentDescription = null,
-            tint = Color(0xFFC7C7CC), // iOS Chevron Light Grey
-            modifier = Modifier.size(16.dp)
+            tint = Color(0xFFC7C7CC),
+            modifier = Modifier.size(20.dp)
         )
     }
 }

@@ -12,12 +12,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import android.widget.Toast
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -45,11 +51,31 @@ fun CreateCircleAlertScreen(
     val coroutineScope = rememberCoroutineScope()
 
     var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
+    var alertCategory by remember { mutableStateOf(if (isEnglish) "Lost Child" else "হারিয়ে যাওয়া শিশু") }
     var contactNumber by remember { mutableStateOf("") }
     var country by remember { mutableStateOf(if (isEnglish) "Bangladesh" else "বাংলাদেশ") }
-    var location by remember { mutableStateOf(savedLocation) }
+    var location by remember { mutableStateOf(if (savedLocation.isEmpty()) "Dhaka" else savedLocation) }
     
+    val alertCategories = if (isEnglish) {
+        listOf("Lost Child", "Lost Person", "Blood Required", "Accident", "Emergency Help", "Criminal Activity", "Other")
+    } else {
+        listOf("হারিয়ে যাওয়া শিশু", "নিখোঁজ ব্যক্তি", "রক্তের প্রয়োজন", "দুর্ঘটনা", "জরুরি সাহায্য", "অপরাধমূলক কার্যক্রম", "অন্যান্য")
+    }
+
+    val districts = listOf(
+        "All Bangladesh", "Dhaka", "Faridpur", "Gazipur", "Gopalganj", "Kishoreganj", "Madaripur", "Manikganj", "Munshiganj", "Narayanganj", "Narsingdi", "Rajbari", "Shariatpur", "Tangail",
+        "Barishal", "Barguna", "Bhola", "Jhalokati", "Patuakhali", "Pirojpur",
+        "Chattogram", "Bandarban", "Brahmanbaria", "Chandpur", "Cumilla", "Cox's Bazar", "Feni", "Khagrachhari", "Lakshmipur", "Noakhali", "Rangamati",
+        "Khulna", "Bagerhat", "Chuadanga", "Jashore", "Jhenaidah", "Kushtia", "Magura", "Meherpur", "Narail", "Satkhira",
+        "Rajshahi", "Bogura", "Joypurhat", "Naogaon", "Natore", "Chapai Nawabganj", "Pabna", "Sirajganj",
+        "Rangpur", "Dinajpur", "Gaibandha", "Kurigram", "Lalmonirhat", "Nilphamari", "Panchagarh", "Thakurgaon",
+        "Sylhet", "Habiganj", "Moulvibazar", "Sunamganj",
+        "Mymensingh", "Jamalpur", "Netrokona", "Sherpur"
+    )
+
+    var showCategoryMenu by remember { mutableStateOf(false) }
+    var showDistrictMenu by remember { mutableStateOf(false) }
+
     var mediaUri by remember { mutableStateOf<Uri?>(null) }
     var mediaType by remember { mutableStateOf("photo") }
 
@@ -76,10 +102,10 @@ fun CreateCircleAlertScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = BgLight)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
-        containerColor = BgLight
+        containerColor = Color.White
     ) { padding ->
         Column(
             modifier = Modifier
@@ -89,68 +115,142 @@ fun CreateCircleAlertScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Title
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text(if (isEnglish) "Title (e.g., Lost Child)" else "শিরোনাম (যেমন: হারিয়ে যাওয়া শিশু)") },
-                modifier = Modifier.fillMaxWidth()
+                label = { Text(if (isEnglish) "Alert Title (Short & Clear)" else "অ্যালার্ট সিরনাম (সংক্ষিপ্ত ও স্পষ্ট)") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
             )
 
-            OutlinedTextField(
-                value = description,
-                onValueChange = { description = it },
-                label = { Text(if (isEnglish) "Full Description" else "সম্পূর্ণ বিবরণ") },
-                modifier = Modifier.fillMaxWidth().height(120.dp),
-                maxLines = 5
-            )
+            // Category Selection
+            Box {
+                OutlinedTextField(
+                    value = alertCategory,
+                    onValueChange = {},
+                    label = { Text(if (isEnglish) "Select Alert Category" else "অ্যালার্ট ক্যাটাগরি সিলেক্ট করুন") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    readOnly = true,
+                    trailingIcon = {
+                        IconButton(onClick = { showCategoryMenu = true }) {
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                        }
+                    }
+                )
+                DropdownMenu(
+                    expanded = showCategoryMenu,
+                    onDismissRequest = { showCategoryMenu = false },
+                    modifier = Modifier.fillMaxWidth(0.9f).background(Color.White)
+                ) {
+                    alertCategories.forEach { cat ->
+                        DropdownMenuItem(
+                            text = { Text(cat) },
+                            onClick = {
+                                alertCategory = cat
+                                showCategoryMenu = false
+                            }
+                        )
+                    }
+                }
+            }
             
+            // District Selection
+            Box {
+                OutlinedTextField(
+                    value = location,
+                    onValueChange = {},
+                    label = { Text(if (isEnglish) "Target Area / District" else "লক্ষ্য এলাকা / জেলা") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    readOnly = true,
+                    trailingIcon = {
+                        IconButton(onClick = { showDistrictMenu = true }) {
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                        }
+                    }
+                )
+                DropdownMenu(
+                    expanded = showDistrictMenu,
+                    onDismissRequest = { showDistrictMenu = false },
+                    modifier = Modifier.fillMaxWidth(0.9f).background(Color.White).heightIn(max = 300.dp)
+                ) {
+                    districts.forEach { dist ->
+                        DropdownMenuItem(
+                            text = { Text(dist) },
+                            onClick = {
+                                location = dist
+                                showDistrictMenu = false
+                            }
+                        )
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = contactNumber,
                 onValueChange = { contactNumber = it },
-                label = { Text(if (isEnglish) "Contact Phone Number" else "যোগাযোগের ফোন নম্বর") },
-                modifier = Modifier.fillMaxWidth()
+                label = { Text(if (isEnglish) "Emergency Contact Phone" else "জরুরি যোগাযোগ ফোন") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
             )
             
-            OutlinedTextField(
-                value = location,
-                onValueChange = { location = it },
-                label = { Text(if (isEnglish) "Location (Auto-filled from settings)" else "অবস্থান (সেটিংস থেকে স্বয়ংক্রিয়ভাবে নেওয়া হয়েছে)") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Button(
-                    onClick = { photoLauncher.launch("image/*") },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (mediaUri != null && mediaType == "photo") PrimaryGreen else Color.Gray)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = if (isEnglish) "Attach Photo or Video" else "ছবি অথবা ভিডিও সংযুক্ত করুন",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (isEnglish) "Photo" else "ছবি")
-                }
-                Button(
-                    onClick = { videoLauncher.launch("video/*") },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (mediaUri != null && mediaType == "video") PrimaryGreen else Color.Gray)
-                ) {
-                    Icon(Icons.Default.VideoFile, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (isEnglish) "Video" else "ভিডিও")
+                    Button(
+                        onClick = { photoLauncher.launch("image/*") },
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (mediaUri != null && mediaType == "photo") PrimaryGreen else BgLight, contentColor = if (mediaUri != null && mediaType == "photo") Color.White else Color.Gray)
+                    ) {
+                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(if (isEnglish) "Photo" else "ছবি")
+                    }
+                    Button(
+                        onClick = { videoLauncher.launch("video/*") },
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (mediaUri != null && mediaType == "video") PrimaryGreen else BgLight, contentColor = if (mediaUri != null && mediaType == "video") Color.White else Color.Gray)
+                    ) {
+                        Icon(Icons.Default.VideoFile, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(if (isEnglish) "Video" else "ভিডিও")
+                    }
                 }
             }
 
             if (mediaUri != null) {
-                Text(
-                    text = if (isEnglish) "Media selected: ${mediaType.uppercase()}" else "মিডিয়া নির্বাচিত: ${if(mediaType=="photo") "ছবি" else "ভিডিও"}",
-                    color = PrimaryGreen,
-                    fontWeight = FontWeight.Bold
-                )
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = PrimaryGreen.copy(alpha = 0.1f)),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(if(mediaType=="photo") Icons.Default.CheckCircle else Icons.Default.VideoFile, contentDescription = null, tint = PrimaryGreen)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = if (isEnglish) "Media Selected: ${mediaType.uppercase()}" else "মিডিয়া নির্বাচিত: ${if(mediaType=="photo") "ছবি" else "ভিডিও"}",
+                            color = PrimaryGreen,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             Button(
                 onClick = {
@@ -159,7 +259,7 @@ fun CreateCircleAlertScreen(
                         val alert = CircleAlert(
                             docId = docId,
                             title = title,
-                            description = description,
+                            description = "", // Removed description as per request
                             mediaUri = mediaUri?.toString() ?: "",
                             mediaType = mediaType,
                             contactNumber = contactNumber,
@@ -170,34 +270,22 @@ fun CreateCircleAlertScreen(
                         )
                         
                         val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-                        // Show Local Push Notification equivalent
-                        coroutineScope.launch {
-                            val db = TrackerDatabase.getDatabase(context)
-                            db.notificationDao().insertNotification(
-                                NotificationEntity(
-                                    title = if (isEnglish) "🔴 Circle Alert: $title" else "🔴 সার্কেল অ্যালার্ট: $title",
-                                    body = if (isEnglish) "A new alert has been published. Tap to view details." else "একটি নতুন সতর্কতা প্রকাশ করা হয়েছে। বিস্তারিত দেখতে ক্লিক করুন।",
-                                    timestamp = System.currentTimeMillis(),
-                                    type = "GENERAL",
-                                    actorName = currentUser?.displayName ?: "Halal Circle"
-                                )
-                            )
-                        }
-
-                        // Write to Firestore as a UserUploadedVideo but with isCircleAlert = true
+                        
+                        // Push to Firestore
                         val firestore = com.google.firebase.firestore.FirebaseFirestore.getInstance()
                         val videoData = hashMapOf(
                             "userId" to (currentUser?.uid ?: "unknown"),
                             "author" to (currentUser?.displayName ?: "Unknown Author"),
                             "title" to title,
-                            "description" to description,
+                            "description" to "",
                             "timestamp" to System.currentTimeMillis(),
                             "status" to "PENDING",
                             "mediaType" to mediaType,
                             "contactNumber" to contactNumber,
                             "country" to country,
                             "location" to location,
-                            "isCircleAlert" to true
+                            "isCircleAlert" to true,
+                            "alertCategory" to alertCategory
                         )
                         firestore.collection("videos").document(docId).set(videoData)
                         
@@ -206,7 +294,7 @@ fun CreateCircleAlertScreen(
                                 putExtra("mediaUri", mediaUri.toString())
                                 putExtra("mediaType", mediaType)
                                 putExtra("title", title)
-                                putExtra("description", description)
+                                putExtra("description", "")
                                 putExtra("contactNumber", contactNumber)
                                 putExtra("location", location)
                                 putExtra("docId", docId)
@@ -215,12 +303,15 @@ fun CreateCircleAlertScreen(
                         }
                         
                         onSubmit(alert)
+                    } else {
+                        Toast.makeText(context, if(isEnglish) "Please enter title and contact" else "শিরনাম এবং কন্টাক্ট প্রদান করুন", Toast.LENGTH_SHORT).show()
                     }
                 },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(28.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Red) // High alert color
             ) {
-                Text(if (isEnglish) "Publish Alert" else "অ্যালার্ট প্রকাশ করুন", fontSize = 16.sp)
+                Text(if (isEnglish) "Broadcast Real-time Alert 🚨" else "অ্যালার্ট ব্রডকাস্ট করুন 🚨", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

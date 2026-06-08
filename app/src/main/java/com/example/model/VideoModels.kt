@@ -28,5 +28,7 @@ data class UserUploadedVideo(
     val contactNumber: String = "",
     val country: String = "Bangladesh",
     val location: String = "All Bangladesh",
-    val isCircleAlert: Boolean = false
+    val isCircleAlert: Boolean = false,
+    val alertCategory: String = "", // e.g. Lost, Blood, Accident
+    val isRegionalNotificationSent: Boolean = false
 )
