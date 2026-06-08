@@ -1,0 +1,6 @@
+{
+  "name": "Halal Circle",
+  "description": "A comprehensive Islamic application featuring prayer times, Quran, and a halal video feed.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
