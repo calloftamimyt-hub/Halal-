@@ -100,7 +100,8 @@ data class VideoItem(
     val isCircleAlert: Boolean = false,
     val alertCategory: String = "",
     val backgroundStyle: String = "",
-    val visibilityMode: String = "public"
+    val visibilityMode: String = "public",
+    val timestamp: Long = 0L
 )
 
 // dummyVideos removed to only show user-uploaded videos
@@ -381,7 +382,8 @@ fun VideoScreen(
                     isCircleAlert = uv.isCircleAlert ?: false,
                     alertCategory = uv.alertCategory ?: "",
                     backgroundStyle = uv.backgroundStyle ?: "",
-                    visibilityMode = uv.visibilityMode ?: "public"
+                    visibilityMode = uv.visibilityMode ?: "public",
+                    timestamp = uv.timestamp
                 )
              }
         }
@@ -1575,7 +1577,22 @@ fun FacebookVideoPostCard(
                             )
                         }
                     }
-                    Text(text = video.category, color = Color.Gray, fontSize = 12.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val relativeTime = android.text.format.DateUtils.getRelativeTimeSpanString(video.timestamp).toString()
+                        val subtitleText = if (video.category.isNotEmpty()) "${video.category} • $relativeTime" else relativeTime
+                        Text(text = subtitleText, color = Color.Gray, fontSize = 12.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = when (video.visibilityMode) {
+                                "private" -> Icons.Default.Lock
+                                "followers" -> Icons.Default.People
+                                else -> Icons.Default.Public
+                            },
+                            contentDescription = null,
+                            tint = Color.Gray,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
                 }
 
                 var isDownloadingLocal by remember { mutableStateOf(false) }
@@ -1587,71 +1604,85 @@ fun FacebookVideoPostCard(
                 }
             }
 
-            // Title and Description - FIXED: Use unique content
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 2.dp)
-            ) {
-                if (video.title.isNotEmpty()) {
-                    Text(
-                        text = video.title,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = Color.Black
-                    )
-                }
-                if (video.description.isNotEmpty() && video.description != video.title) {
-                    Text(
-                        text = video.description,
-                        fontSize = 13.sp,
-                        color = Color.DarkGray,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (video.isCircleAlert) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color.Red))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Circle Alert • ${video.location}, ${video.country}", color = Color.Red, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            // Title and Description - FIXED: Use unique content (skipped for pure text uploads to prevent duplicates)
+            if (video.mediaType != "text") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 2.dp)
+                ) {
+                    if (video.title.isNotEmpty()) {
+                        Text(
+                            text = video.title,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color.Black
+                        )
                     }
-                    if (video.contactNumber.isNotEmpty()) {
-                        Text("Contact: ${video.contactNumber}", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
+                    if (video.description.isNotEmpty() && video.description != video.title) {
+                        Text(
+                            text = video.description,
+                            fontSize = 13.sp,
+                            color = Color.DarkGray,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
+                    if (video.isCircleAlert) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color.Red))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Circle Alert • ${video.location}, ${video.country}", color = Color.Red, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        if (video.contactNumber.isNotEmpty()) {
+                            Text("Contact: ${video.contactNumber}", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
                 }
-                Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Media Content Container
+            // Media Content Container - Standard clean post representation
             if (video.mediaType == "text") {
                 val bgStyle = video.backgroundStyle ?: ""
                 val bgBrush = getPostBackgroundBrush(bgStyle)
                 val isStyled = bgBrush != null
                 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .then(
-                            if (isStyled) {
-                                Modifier.background(bgBrush!!, RoundedCornerShape(12.dp))
-                            } else {
-                                Modifier.background(Color(0xFFF0F2F5), RoundedCornerShape(12.dp))
-                            }
+                if (isStyled) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .background(bgBrush!!, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 24.dp, vertical = 48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = video.description,
+                            fontSize = 22.sp,
+                            color = getPostBackgroundTextColor(bgStyle),
+                            textAlign = TextAlign.Center,
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = 30.sp
                         )
-                        .padding(horizontal = 24.dp, vertical = if (isStyled) 48.dp else 24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = video.description,
-                        fontSize = if (isStyled) 22.sp else 18.sp,
-                        color = getPostBackgroundTextColor(bgStyle),
-                        textAlign = TextAlign.Center,
-                        fontWeight = if (isStyled) FontWeight.Bold else FontWeight.Normal,
-                        lineHeight = if (isStyled) 30.sp else 26.sp
-                    )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text(
+                            text = video.description,
+                            fontSize = 18.sp,
+                            color = Color.Black,
+                            textAlign = TextAlign.Start,
+                            fontWeight = FontWeight.Normal,
+                            lineHeight = 26.sp
+                        )
+                    }
                 }
             } else {
                 Box(

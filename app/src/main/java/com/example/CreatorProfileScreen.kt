@@ -351,7 +351,11 @@ fun CreatorProfileScreen(
                             likedBy = uv.likedBy,
                             sharesCount = uv.sharesCount,
                             title = uv.title,
-                            videoUri = uv.videoUri
+                            videoUri = uv.videoUri,
+                            mediaType = uv.mediaType ?: "video",
+                            backgroundStyle = uv.backgroundStyle ?: "",
+                            visibilityMode = uv.visibilityMode ?: "public",
+                            timestamp = uv.timestamp
                         )
 
                         FacebookVideoPostCard(
