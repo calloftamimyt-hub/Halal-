@@ -90,7 +90,12 @@ data class VideoItem(
     val sharesCount: Long = 0L,
     val title: String = "",
     val videoUri: String = "",
-    val thumbnailUrl: String = ""
+    val thumbnailUrl: String = "",
+    val mediaType: String = "video",
+    val contactNumber: String = "",
+    val country: String = "Bangladesh",
+    val location: String = "All Bangladesh",
+    val isCircleAlert: Boolean = false
 )
 
 // dummyVideos removed to only show user-uploaded videos
@@ -161,6 +166,7 @@ fun VideoScreen(
     onNavigateToCreatorProfile: (String, String) -> Unit = { _, _ -> },
     onNavigateToSaved: () -> Unit = {},
     onNavigateToFriends: () -> Unit = {},
+    onNavigateToCreateCircleAlert: () -> Unit = {},
     isFeedActive: Boolean = true
 ) {
     val context = LocalContext.current
@@ -318,7 +324,12 @@ fun VideoScreen(
                     sharesCount = uv.sharesCount ?: 0L,
                     title = uv.title ?: "",
                     videoUri = uv.videoUri ?: "",
-                    thumbnailUrl = uv.thumbnailUrl ?: ""
+                    thumbnailUrl = uv.thumbnailUrl ?: "",
+                    mediaType = uv.mediaType ?: "video",
+                    contactNumber = uv.contactNumber ?: "",
+                    country = uv.country ?: "Bangladesh",
+                    location = uv.location ?: "All Bangladesh",
+                    isCircleAlert = uv.isCircleAlert ?: false
                 )
              }
         }
@@ -444,7 +455,8 @@ fun VideoScreen(
             allCategories = allCategories,
             onCategoryChange = { selectedCategory = it },
             isLoading = isVideosLoading,
-            onNavigateToFriends = onNavigateToFriends
+            onNavigateToFriends = onNavigateToFriends,
+            onNavigateToCreateCircleAlert = onNavigateToCreateCircleAlert
         )
 
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
@@ -1150,7 +1162,8 @@ fun VideoTopIcons(
     allCategories: List<String> = emptyList(),
     onCategoryChange: (String) -> Unit = {},
     isLoading: Boolean = false,
-    onNavigateToFriends: () -> Unit = {}
+    onNavigateToFriends: () -> Unit = {},
+    onNavigateToCreateCircleAlert: () -> Unit = {}
 ) {
     val isDarkTheme = false
     val backgroundModifier = Modifier.background(Color.White)
@@ -1182,6 +1195,13 @@ fun VideoTopIcons(
                     letterSpacing = (-0.5).sp
                 )
                 Spacer(modifier = Modifier.weight(1f))
+                IconButton(onClick = onNavigateToCreateCircleAlert) {
+                    Icon(
+                        imageVector = Icons.Default.Add, 
+                        contentDescription = "Create Circle Alert", 
+                        tint = Color.Black
+                    )
+                }
                 IconButton(onClick = onNavigateToFriends) {
                     Icon(
                         imageVector = Icons.Default.Search, 
@@ -1436,6 +1456,17 @@ fun FacebookVideoPostCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+                if (video.isCircleAlert) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color.Red))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Circle Alert • ${video.location}, ${video.country}", color = Color.Red, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    if (video.contactNumber.isNotEmpty()) {
+                        Text("Contact: ${video.contactNumber}", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
+                    }
+                }
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
@@ -1498,44 +1529,58 @@ fun FacebookVideoPostCard(
                     }
                 } else {
                     Box(modifier = Modifier.fillMaxSize()) {
-                        VideoPlayer(
-                            videoItem = video, 
-                            isSelected = isPlaying, 
-                            modifier = Modifier.fillMaxSize()
-                        )
-                        
-                        if (!isPlaying) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clickable { onPlayClick() }
-                                    .background(Color.Black.copy(alpha = 0.1f)), // Subtle tint
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (video.thumbnailUrl.isNotEmpty() || getYoutubeThumbnail(video.videoUri).isNotEmpty()) {
-                                     androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
-                                         val imageUrl = if (video.thumbnailUrl.isNotEmpty()) video.thumbnailUrl else getYoutubeThumbnail(video.videoUri)
-                                         coil.compose.AsyncImage(
-                                             model = imageUrl,
-                                             contentDescription = null,
-                                             modifier = Modifier.fillMaxSize(),
-                                             contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                                         )
-                                         // Play icon overlay
-                                         Icon(
-                                             imageVector = Icons.Default.PlayArrow,
-                                             contentDescription = null,
-                                             tint = Color.White.copy(alpha = 0.8f),
-                                             modifier = Modifier.size(60.dp).align(Alignment.Center)
-                                         )
-                                     }
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(60.dp)
-                                    )
+                        if (video.mediaType == "photo") {
+                            val imageUrl = if (video.telegramFileId.isNotEmpty() && !TELEGRAM_PROXY_URL.contains("YOUR_SCRIPT_ID")) {
+                                "$TELEGRAM_PROXY_URL?action=stream&file_id=${video.telegramFileId}"
+                            } else {
+                                video.url.ifEmpty { video.videoUri }
+                            }
+                            coil.compose.AsyncImage(
+                                model = imageUrl,
+                                contentDescription = "Circle Alert Image",
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize().clickable { onPlayClick() }
+                            )
+                        } else {
+                            VideoPlayer(
+                                videoItem = video, 
+                                isSelected = isPlaying, 
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            
+                            if (!isPlaying) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clickable { onPlayClick() }
+                                        .background(Color.Black.copy(alpha = 0.1f)), // Subtle tint
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (video.thumbnailUrl.isNotEmpty() || getYoutubeThumbnail(video.videoUri).isNotEmpty()) {
+                                         androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
+                                             val imageUrl = if (video.thumbnailUrl.isNotEmpty()) video.thumbnailUrl else getYoutubeThumbnail(video.videoUri)
+                                             coil.compose.AsyncImage(
+                                                 model = imageUrl,
+                                                 contentDescription = null,
+                                                 modifier = Modifier.fillMaxSize(),
+                                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                             )
+                                             // Play icon overlay
+                                             Icon(
+                                                 imageVector = Icons.Default.PlayArrow,
+                                                 contentDescription = null,
+                                                 tint = Color.White.copy(alpha = 0.8f),
+                                                 modifier = Modifier.size(60.dp).align(Alignment.Center)
+                                             )
+                                         }
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayArrow,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(60.dp)
+                                        )
+                                    }
                                 }
                             }
                         }

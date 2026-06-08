@@ -297,6 +297,7 @@ class MainActivity : ComponentActivity() {
                         var isAddAlarmPageOpen by remember { mutableStateOf(false) }
                         var isParentalPageOpen by remember { mutableStateOf(false) }
                         var isPrayerPageOpen by remember { mutableStateOf(false) }
+                        var isCreateCircleAlertOpen by remember { mutableStateOf(false) }
                         
                         val alarmViewModel: com.example.viewmodel.AlarmViewModel = remember { 
                             com.example.viewmodel.AlarmViewModel(context) 
@@ -324,7 +325,7 @@ class MainActivity : ComponentActivity() {
                         }
 
                         val view = LocalView.current
-                        val isProfileOverlayOpen = selectedCreatorUid != null || isSavedPostsOpen || isFriendsPageOpen || isAlarmPageOpen || isZakatPageOpen || isCalendarPageOpen || isQiblaPageOpen || isNotificationsPageOpen || isAddAlarmPageOpen || isParentalPageOpen || isPrayerPageOpen
+                        val isProfileOverlayOpen = selectedCreatorUid != null || isSavedPostsOpen || isFriendsPageOpen || isAlarmPageOpen || isZakatPageOpen || isCalendarPageOpen || isQiblaPageOpen || isNotificationsPageOpen || isAddAlarmPageOpen || isParentalPageOpen || isPrayerPageOpen || isCreateCircleAlertOpen
                         val isDarkStatusBar = (selectedTab == "create") && !isProfileOverlayOpen && FirebaseAuth.getInstance().currentUser != null
                         val isAuthPage = (selectedTab == "create") && FirebaseAuth.getInstance().currentUser == null
                         
@@ -411,6 +412,9 @@ class MainActivity : ComponentActivity() {
                                             },
                                             onNavigateToFriends = {
                                                 isFriendsPageOpen = true
+                                            },
+                                            onNavigateToCreateCircleAlert = {
+                                                isCreateCircleAlertOpen = true
                                             },
                                             isFeedActive = !isProfileOverlayOpen
                                         )
@@ -573,6 +577,20 @@ class MainActivity : ComponentActivity() {
                                         onBack = { isPrayerPageOpen = false },
                                         onToggleAlarm = { alarmId -> viewModel.toggleAlarm(context, alarmId) },
                                         onOpenAlarmPage = { isAlarmPageOpen = true }
+                                    )
+                                }
+                                AnimatedVisibility(
+                                    visible = isCreateCircleAlertOpen,
+                                    enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }, animationSpec = androidx.compose.animation.core.tween(400)) + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(400)),
+                                    exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }, animationSpec = androidx.compose.animation.core.tween(400)) + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(400))
+                                ) {
+                                    CreateCircleAlertScreen(
+                                        savedLocation = state.locationName.ifEmpty { "All Bangladesh" }, // Get location from state
+                                        onBack = { isCreateCircleAlertOpen = false },
+                                        onSubmit = { alert ->
+                                            isCreateCircleAlertOpen = false
+                                            // Optional: submit to server
+                                        }
                                     )
                                 }
                             }

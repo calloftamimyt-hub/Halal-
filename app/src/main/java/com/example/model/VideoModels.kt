@@ -23,5 +23,10 @@ data class UserUploadedVideo(
     val thumbnailUrl: String = "",
     val viewsCount: Long = 0L,
     val likedBy: List<String> = emptyList(),
-    val sharesCount: Long = 0L
+    val sharesCount: Long = 0L,
+    val mediaType: String = "video", // "photo" or "video"
+    val contactNumber: String = "",
+    val country: String = "Bangladesh",
+    val location: String = "All Bangladesh",
+    val isCircleAlert: Boolean = false
 )
