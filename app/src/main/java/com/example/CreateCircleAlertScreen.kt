@@ -3,6 +3,7 @@ package com.example
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -29,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.android.gms.maps.model.LatLng
 import com.example.model.CircleAlert
 import com.example.ui.theme.BgLight
 import com.example.ui.theme.PrimaryGreen
@@ -75,6 +77,7 @@ fun CreateCircleAlertScreen(
 
     var showCategoryMenu by remember { mutableStateOf(false) }
     var showDistrictMenu by remember { mutableStateOf(false) }
+    var showMapPicker by remember { mutableStateOf(false) }
 
     var mediaUri by remember { mutableStateOf<Uri?>(null) }
     var mediaType by remember { mutableStateOf("photo") }
@@ -188,6 +191,34 @@ fun CreateCircleAlertScreen(
                 }
             }
 
+            // Map Picker Trigger
+            Button(
+                onClick = { showMapPicker = true },
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF9FAFB), contentColor = Color(0xFF374151)),
+                border = BorderStroke(1.dp, Color(0xFFE5E7EB))
+            ) {
+                Icon(androidx.compose.material.icons.Icons.Default.LocationOn, contentDescription = null, tint = PrimaryGreen)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(if (isEnglish) "Select specific area via Map" else "ম্যাপের মাধ্যমে নির্দিষ্ট এলাকা নির্বাচন", fontSize = 14.sp)
+            }
+
+            if (showMapPicker) {
+                androidx.compose.ui.window.Dialog(
+                    onDismissRequest = { showMapPicker = false },
+                    properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+                ) {
+                    MapLocationPicker(
+                        onLocationSelected = { latlng, label ->
+                            location = "${String.format("%.4f", latlng.latitude)}, ${String.format("%.4f", latlng.longitude)}"
+                            showMapPicker = false
+                        },
+                        onDismiss = { showMapPicker = false }
+                    )
+                }
+            }
+
             OutlinedTextField(
                 value = contactNumber,
                 onValueChange = { contactNumber = it },
@@ -254,7 +285,9 @@ fun CreateCircleAlertScreen(
 
             Button(
                 onClick = {
-                    if (title.isNotEmpty() && contactNumber.isNotEmpty()) {
+                    val isValid = title.trim().isNotEmpty() && contactNumber.trim().isNotEmpty() && mediaUri != null
+                    
+                    if (isValid) {
                         val docId = UUID.randomUUID().toString()
                         val alert = CircleAlert(
                             docId = docId,
@@ -304,7 +337,13 @@ fun CreateCircleAlertScreen(
                         
                         onSubmit(alert)
                     } else {
-                        Toast.makeText(context, if(isEnglish) "Please enter title and contact" else "শিরনাম এবং কন্টাক্ট প্রদান করুন", Toast.LENGTH_SHORT).show()
+                        val errorMessage = when {
+                            title.trim().isEmpty() -> if(isEnglish) "Enter a title" else "একটি শিরনাম লিখুন"
+                            contactNumber.trim().isEmpty() -> if(isEnglish) "Enter contact number" else "কন্টাক্ট নম্বর দিন"
+                            mediaUri == null -> if(isEnglish) "Attach a photo or video" else "একটি ছবি বা ভিডিও দিন"
+                            else -> if(isEnglish) "Missing fields" else "তথ্য অসম্পূর্ণ"
+                        }
+                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),

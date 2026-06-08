@@ -33,6 +33,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -181,7 +183,11 @@ fun VideoScreen(
     
     val userVideosList = remember(approvedVideos, myVideos) {
         val combined = (approvedVideos + myVideos).distinctBy { it.docId }
-        combined.sortedByDescending { it.timestamp }
+        // Prioritize Circle Alerts at the top, then sort by timestamp
+        combined.sortedWith(
+            compareByDescending<UserUploadedVideo> { it.isCircleAlert ?: false }
+                .thenByDescending { it.timestamp }
+        )
     }
     
     // Track viewed non-offline unique videos count
@@ -1541,10 +1547,18 @@ fun FacebookVideoPostCard(
                             var isLoadingImage by remember { mutableStateOf(true) }
                             
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                // Blurred background to fill any gaps (fixes black screen perception)
+                                coil.compose.AsyncImage(
+                                    model = imageUrl,
+                                    contentDescription = null,
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize().blur(radius = 20.dp).alpha(0.5f)
+                                )
+                                
                                 coil.compose.AsyncImage(
                                     model = imageUrl,
                                     contentDescription = "Circle Alert Image",
-                                    contentScale = androidx.compose.ui.layout.ContentScale.Fit, // Better for alerts to see full image
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                                     modifier = Modifier.fillMaxSize().clickable { onPlayClick() },
                                     onSuccess = { isLoadingImage = false },
                                     onError = { isLoadingImage = false }
