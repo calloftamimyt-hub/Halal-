@@ -53,6 +53,10 @@ fun NotificationsScreen(
     // Selected notification for the detail screen
     var selectedNotification by remember { mutableStateOf<NotificationEntity?>(null) }
     
+    LaunchedEffect(Unit) {
+        notificationDao.markAllAsRead()
+    }
+
     // No more demo notifications seeding
 
     // Double Screen implementation using AnimatedContent (Details page stack)

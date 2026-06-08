@@ -800,11 +800,45 @@ fun HomeScreen(
                 }
                 Text(state.currentDate, color = TextGray, fontSize = 12.sp, modifier = Modifier.padding(top=2.dp))
             }
-            IconButton(
-                onClick = onOpenNotificationsPage,
-                modifier = Modifier.padding(start = 8.dp)
-            ) {
-                Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = TextDark)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onOpenAlarmPage) {
+                    Icon(Icons.Outlined.AccessAlarm, contentDescription = "Alarms", tint = TextDark)
+                }
+                
+                Box {
+                    val context = LocalContext.current
+                    val unreadCount by remember {
+                        com.example.database.TrackerDatabase.getDatabase(context).notificationDao().getUnreadCount()
+                    }.collectAsState(initial = 0)
+
+                    IconButton(
+                        onClick = onOpenNotificationsPage
+                    ) {
+                        Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = TextDark)
+                    }
+                    
+                    if (unreadCount > 0) {
+                        val displayCount = if (unreadCount > 99) (if (GlobalLanguage.isEnglish) "99+" else "৯৯+") else if (GlobalLanguage.isEnglish) unreadCount.toString() else unreadCount.toBengaliDigits()
+                        val badgeSize = if (unreadCount > 9) 20.dp else 18.dp
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = (-6).dp, y = 6.dp)
+                                .defaultMinSize(minWidth = badgeSize, minHeight = badgeSize)
+                                .background(Color.Red, CircleShape)
+                                .padding(horizontal = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = displayCount,
+                                color = Color.White,
+                                fontSize = if (unreadCount > 9) 9.sp else 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
             }
         }
 
