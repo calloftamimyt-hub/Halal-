@@ -106,17 +106,29 @@ object QuranBookmarkManager {
     }
 }
 
+val globalAyatCounts = listOf(
+    7, 286, 200, 176, 120, 165, 206, 75, 129, 109, 123, 111, 43, 52, 99, 128, 111, 110, 98, 135,
+    112, 78, 118, 64, 77, 227, 93, 88, 69, 60, 34, 30, 73, 54, 45, 83, 182, 88, 75, 85, 54, 53,
+    89, 59, 37, 35, 38, 29, 18, 45, 60, 49, 62, 55, 78, 96, 29, 22, 24, 13, 14, 11, 11, 18, 12,
+    12, 30, 52, 52, 44, 28, 28, 20, 56, 40, 31, 50, 40, 46, 42, 29, 19, 36, 25, 22, 17, 19, 26,
+    30, 20, 15, 15, 11, 8, 8, 19, 5, 8, 8, 11, 11, 8, 3, 9, 5, 4, 7, 3, 6, 3, 5, 4, 5, 6
+)
+
+fun getGlobalVerseNumber(surahId: Int, verseNumber: Int): Int {
+    var count = 0
+    for (i in 0 until (surahId - 1)) {
+        if (i < globalAyatCounts.size) {
+            count += globalAyatCounts[i]
+        }
+    }
+    return count + verseNumber
+}
+
 // Generate the 114 Surahs list
 fun getSurahList(): List<Surah> {
     val medinanIds = setOf(2, 3, 4, 5, 8, 9, 22, 24, 33, 47, 48, 49, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 76, 98, 110)
     
-    val ayatCounts = listOf(
-        7, 286, 200, 176, 120, 165, 206, 75, 129, 109, 123, 111, 43, 52, 99, 128, 111, 110, 98, 135,
-        112, 78, 118, 64, 77, 227, 93, 88, 69, 60, 34, 30, 73, 54, 45, 83, 182, 88, 75, 85, 54, 53,
-        89, 59, 37, 35, 38, 29, 18, 45, 60, 49, 62, 55, 78, 96, 29, 22, 24, 13, 14, 11, 11, 18, 12,
-        12, 30, 52, 52, 44, 28, 28, 20, 56, 40, 31, 50, 40, 46, 42, 29, 19, 36, 25, 22, 17, 19, 26,
-        30, 20, 15, 15, 11, 8, 8, 19, 5, 8, 8, 11, 11, 8, 3, 9, 5, 4, 7, 3, 6, 3, 5, 4, 5, 6
-    )
+    val ayatCounts = globalAyatCounts
 
     val namesEn = listOf(
         "Al-Fatihah", "Al-Baqarah", "Ali 'Imran", "An-Nisa'", "Al-Ma'idah", "Al-An'am", "Al-A'raf", "Al-Anfal", "At-Tawbah", "Yunus",
@@ -632,6 +644,133 @@ fun SurahReadScreen(surah: Surah, onBack: () -> Unit) {
 
     var isPlayingAll by remember { mutableStateOf(false) }
     var activePlaybackVerseNo by remember { mutableStateOf(-1) }
+
+    val mediaPlayerHolder = remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+
+    fun stopAudio() {
+        mediaPlayerHolder.value?.let { gp ->
+            try {
+                if (gp.isPlaying) {
+                     gp.stop()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            try {
+                gp.release()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        mediaPlayerHolder.value = null
+    }
+
+    fun playAudio(surahId: Int, verseNumber: Int, onComplete: () -> Unit) {
+        stopAudio()
+
+        val surahPadded = surahId.toString().padStart(3, '0')
+        val versePadded = verseNumber.toString().padStart(3, '0')
+        val primaryUrl = "https://www.everyayah.com/data/Alafasy_128kbps/$surahPadded$versePadded.mp3"
+        
+        val mp = android.media.MediaPlayer()
+        mediaPlayerHolder.value = mp
+        
+        try {
+            mp.setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .build()
+            )
+            mp.setDataSource(primaryUrl)
+            mp.setOnPreparedListener { player ->
+                player.start()
+            }
+            mp.setOnCompletionListener { player ->
+                player.release()
+                if (mediaPlayerHolder.value == player) {
+                    mediaPlayerHolder.value = null
+                }
+                onComplete()
+            }
+            mp.setOnErrorListener { player, what, extra ->
+                player.release()
+                if (mediaPlayerHolder.value == player) {
+                    mediaPlayerHolder.value = null
+                }
+                
+                // fallback audio stream logic
+                val cumulativeCount = getGlobalVerseNumber(surahId, verseNumber)
+                val fallbackUrl = "https://cdn.islamic.network/quran/audio/128/ar.alafasy/$cumulativeCount.mp3"
+                try {
+                    val fallbackMp = android.media.MediaPlayer()
+                    mediaPlayerHolder.value = fallbackMp
+                    fallbackMp.setAudioAttributes(
+                        android.media.AudioAttributes.Builder()
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                            .build()
+                    )
+                    fallbackMp.setDataSource(fallbackUrl)
+                    fallbackMp.setOnPreparedListener { fPlayer ->
+                        fPlayer.start()
+                    }
+                    fallbackMp.setOnCompletionListener { fPlayer ->
+                        fPlayer.release()
+                        if (mediaPlayerHolder.value == fPlayer) {
+                            mediaPlayerHolder.value = null
+                        }
+                        onComplete()
+                    }
+                    fallbackMp.setOnErrorListener { fPlayer, fWhat, fExtra ->
+                        fPlayer.release()
+                        if (mediaPlayerHolder.value == fPlayer) {
+                            mediaPlayerHolder.value = null
+                        }
+                        Toast.makeText(context, "তিলাওয়াত অডিও লোড করা যাচ্ছে না", Toast.LENGTH_SHORT).show()
+                        onComplete()
+                        true
+                    }
+                    fallbackMp.prepareAsync()
+                } catch (ex: Exception) {
+                    ex.printStackTrace()
+                    onComplete()
+                }
+                true
+            }
+            mp.prepareAsync()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            onComplete()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            stopAudio()
+        }
+    }
+
+    LaunchedEffect(activePlaybackVerseNo, isPlayingAll) {
+        if (activePlaybackVerseNo != -1) {
+            playAudio(surah.id, activePlaybackVerseNo) {
+                if (isPlayingAll) {
+                    val nextVerse = activePlaybackVerseNo + 1
+                    if (nextVerse <= surah.totalVerses) {
+                        activePlaybackVerseNo = nextVerse
+                    } else {
+                        isPlayingAll = false
+                        activePlaybackVerseNo = -1
+                        Toast.makeText(context, "সূরা তিলাওয়াত সমাপ্ত হয়েছে", Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    activePlaybackVerseNo = -1
+                }
+            }
+        } else {
+            stopAudio()
+        }
+    }
 
     Column(
         modifier = Modifier

@@ -393,7 +393,10 @@ fun CreateVideoScreen(
                     onUploadClicked = { title, hashtags, features ->
                         val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
                         var userId = currentUser?.uid
-                        val authorName = currentUser?.displayName ?: "@halal_user"
+                        val profilePrefs = context.getSharedPreferences("profile_prefs", android.content.Context.MODE_PRIVATE)
+                        val authorName = profilePrefs.getString("user_name", null)
+                            ?: currentUser?.displayName
+                            ?: "@halal_user"
                         
                         if (userId == null) {
                             val sharedPrefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE)

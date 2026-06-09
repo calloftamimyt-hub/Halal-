@@ -21,6 +21,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -49,17 +51,23 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.keyframes
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.tween
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 
@@ -224,6 +232,43 @@ fun VideoScreen(
     
     // Track viewed non-offline unique videos count
     val viewedNonOfflineVideos = remember { mutableStateListOf<String>() }
+    val backgroundResolvedUrls = remember { mutableStateMapOf<String, String>() }
+    
+    // Background Background URL Resolution Effect
+    // This resolves Telegram direct URLs before they are scrolled into view
+    LaunchedEffect(userVideosList) {
+        userVideosList.take(25).forEach { uv ->
+            val docId = uv.docId ?: ""
+            val fileId = uv.telegramFileId ?: ""
+            if (docId.isNotEmpty() && fileId.isNotEmpty() && !backgroundResolvedUrls.containsKey(docId)) {
+                launch(Dispatchers.IO) {
+                    try {
+                        val botToken = "8968904429:AAE3Ce849ysMuaxQhdMebsBwyB_nlIPQ1Os"
+                        val request = Request.Builder()
+                            .url("https://api.telegram.org/bot$botToken/getFile?file_id=$fileId")
+                            .build()
+                        globalOkHttpClient.newCall(request).execute().use { response ->
+                            if (response.isSuccessful) {
+                                val responseStr = response.body?.string()
+                                if (!responseStr.isNullOrEmpty()) {
+                                    val jsonObj = JSONObject(responseStr)
+                                    if (jsonObj.optBoolean("ok")) {
+                                        val result = jsonObj.optJSONObject("result")
+                                        val filePath = result?.optString("file_path")
+                                        if (!filePath.isNullOrEmpty()) {
+                                            backgroundResolvedUrls[docId] = "https://api.telegram.org/file/bot$botToken/$filePath"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("VideoScreen", "Bg Resolve Failed for $docId", e)
+                    }
+                }
+            }
+        }
+    }
     val dismissedPendingBanners = remember { mutableStateMapOf<String, Boolean>() }
     
     var isVideosLoading by remember { mutableStateOf(true) }
@@ -353,7 +398,7 @@ fun VideoScreen(
              userVideosList.filter { it.status == "APPROVED" }.map { uv ->
                 val playUrl = if (uv.telegramFileId.isNotEmpty() && !TELEGRAM_PROXY_URL.contains("YOUR_SCRIPT_ID")) {
                     "$TELEGRAM_PROXY_URL?action=stream&file_id=${uv.telegramFileId}"
-                } else if (uv.videoUri.startsWith("http")) {
+                } else if (uv.videoUri.startsWith("http") || uv.mediaType == "photo") {
                     uv.videoUri
                 } else {
                     "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"
@@ -423,10 +468,12 @@ fun VideoScreen(
     var playingVideoId by remember { 
         mutableStateOf(null as String?) 
     }
+    var isUserPausedId by remember { mutableStateOf(null as String?) }
 
     // Pre-fetching logic: Pre-load the next video in the list
     LaunchedEffect(playingVideoId, combinedVideos) {
         if (playingVideoId != null) {
+            isUserPausedId = null // Reset pause on auto-play or manual play change
             val currentIndex = combinedVideos.indexOfFirst { it.docId == playingVideoId }
             if (currentIndex != -1 && currentIndex < combinedVideos.size - 1) {
                 val nextVideo = combinedVideos[currentIndex + 1]
@@ -665,14 +712,21 @@ fun VideoScreen(
                                 FacebookVideoPostCard(
                                     video = video,
                                     isPlaying = isVisible,
+                                    isUserPaused = isUserPausedId == video.docId,
                                     onPlayClick = {
-                                        playingVideoId = if (playingVideoId == video.docId) null else video.docId
+                                        if (playingVideoId != video.docId) {
+                                            playingVideoId = video.docId
+                                            isUserPausedId = null
+                                        } else {
+                                            isUserPausedId = if (isUserPausedId == video.docId) null else video.docId
+                                        }
                                     },
-                                    isLimitExceeded = false, // Handled internally now
+                                    isLimitExceeded = false,
                                     onRequireLogin = onRequireLogin,
                                     onNavigateToCreatorProfile = onNavigateToCreatorProfile,
                                     onNavigateToSaved = onNavigateToSaved,
-                                    dismissedPendingBanners = dismissedPendingBanners
+                                    dismissedPendingBanners = dismissedPendingBanners,
+                                    backgroundResolvedUrls = backgroundResolvedUrls
                                 )
                             }
 
@@ -719,18 +773,21 @@ fun VideoScreen(
                 showTextUploadDialog = false
                 quickPostImageUri = null
             },
-            onPost = { content, bgStyle, visibility, imageUri ->
+            onPost = { titleText: String, content: String, bgStyle: String, visibility: String, imageUri: Uri? ->
                 showTextUploadDialog = false
                 quickPostImageUri = null
                 val docId = java.util.UUID.randomUUID().toString()
-                val profileName = sharedPrefs.getString("name", "Someone") ?: "Someone"
+                val profilePrefs = context.getSharedPreferences("profile_prefs", android.content.Context.MODE_PRIVATE)
+                val profileName = profilePrefs.getString("user_name", null)
+                    ?: com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.displayName
+                    ?: "Someone"
                 
                 val hasPhoto = imageUri != null
                 val videoRecord = UserUploadedVideo(
                     docId = docId,
                     userId = currentUserId,
                     author = profileName,
-                    title = if (content.length > 30) content.take(30) + "..." else if (hasPhoto) "Photo Post" else "Text Post",
+                    title = if (hasPhoto) (if (titleText.trim().isNotEmpty()) titleText.trim() else "Photo Post") else (if (content.length > 30) (content.take(30) as String) + "..." else "Text Post"),
                     description = content,
                     timestamp = System.currentTimeMillis(),
                     status = "PENDING", // Needs admin approval for photo, or APPROVED for text
@@ -783,6 +840,33 @@ fun VideoScreen(
     }
 }
 
+@Composable
+fun VideoShimmer(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val alpha by transition.animateFloat(
+        initialValue = 0.2f,
+        targetValue = 0.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
+    
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xFFEEEEEE)) // Light gray background
+    ) {
+        // Pulsing white overlay for "Facebook/YouTube style"
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White.copy(alpha = alpha))
+        )
+    }
+}
+
 private var isGlobalMuted by androidx.compose.runtime.mutableStateOf(false)
 
 private val globalOkHttpClient = okhttp3.OkHttpClient.Builder()
@@ -796,18 +880,19 @@ fun VideoPlayer(
     videoItem: VideoItem, 
     isSelected: Boolean, 
     modifier: Modifier = Modifier.fillMaxSize(),
+    resolvedUrlsMap: Map<String, String> = emptyMap(),
+    shouldPlay: Boolean = true,
     onReadyChange: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     var exoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
-    var isUserPaused by remember(videoItem.id, isSelected) { mutableStateOf(false) }
     
     val needsResolution = videoItem.telegramFileId.isNotEmpty() || 
                           videoItem.url.contains("file_id=") || 
                           videoItem.url.startsWith("https://script.google.com")
 
-    var resolvedUrl by remember(videoItem.url, videoItem.telegramFileId) { 
-        mutableStateOf(if (needsResolution) "" else videoItem.url) 
+    var resolvedUrl by remember(videoItem.url, videoItem.telegramFileId, resolvedUrlsMap[videoItem.docId]) { 
+        mutableStateOf(resolvedUrlsMap[videoItem.docId] ?: (if (needsResolution) "" else videoItem.url)) 
     }
 
     // Resolve URL first if it is a Telegram video or Google Apps Script Proxy URL or local content Uri
@@ -885,11 +970,18 @@ fun VideoPlayer(
         }
         
         val cacheDataSourceFactory = VideoCacheManager.getCacheDataSourceFactory(context)
-        val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context)
+        
+        // Custom LoadControl to start playback faster
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(2500, 50000, 1000, 2000)
+            .build()
+
+        val mediaSourceFactory = DefaultMediaSourceFactory(context)
             .setDataSourceFactory(cacheDataSourceFactory)
 
         val player = ExoPlayer.Builder(context)
             .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
             .build().apply {
             setMediaItem(MediaItem.fromUri(Uri.parse(resolvedUrl)))
             repeatMode = Player.REPEAT_MODE_ONE
@@ -911,11 +1003,11 @@ fun VideoPlayer(
         }
     }
 
-    val shouldPlay = isSelected && !isUserPaused
+    val effectivelyPlaying = isSelected && shouldPlay
 
-    LaunchedEffect(shouldPlay) {
+    LaunchedEffect(effectivelyPlaying) {
         exoPlayer?.let { player ->
-            if (shouldPlay) {
+            if (effectivelyPlaying) {
                 player.play()
             } else {
                 player.pause()
@@ -932,7 +1024,7 @@ fun VideoPlayer(
             if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE || event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
                 exoPlayer?.pause()
             } else if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                if (shouldPlay) {
+                if (effectivelyPlaying) {
                     exoPlayer?.play()
                 }
             }
@@ -946,22 +1038,10 @@ fun VideoPlayer(
     Box(
         modifier = modifier
             .background(Color.Black)
-            .clickable(
-                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                indication = null
-            ) {
-                isUserPaused = !isUserPaused
-            }
     ) {
-        // Immediate Thumbnail Placeholder to eliminate Black Screen
-        if (videoItem.thumbnailUrl.isNotEmpty() || getYoutubeThumbnail(videoItem.videoUri).isNotEmpty()) {
-            val imageUrl = if (videoItem.thumbnailUrl.isNotEmpty()) videoItem.thumbnailUrl else getYoutubeThumbnail(videoItem.videoUri)
-            coil.compose.AsyncImage(
-                model = imageUrl,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop
-            )
+        // Immediate Shimmer Placeholder to eliminate Black Screen
+        if (!isReady && isSelected) {
+            VideoShimmer()
         }
 
         AndroidView(
@@ -979,20 +1059,7 @@ fun VideoPlayer(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Detailed Loading State on top of thumbnail
-        androidx.compose.animation.AnimatedVisibility(
-            visible = !isReady && isSelected,
-            exit = androidx.compose.animation.fadeOut(animationSpec = tween(400))
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)), 
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = PrimaryGreen, modifier = Modifier.size(36.dp))
-            }
-        }
-
-        if (isUserPaused) {
+        if (isSelected && !shouldPlay) {
             Box(
                 modifier = Modifier
                     .size(64.dp)
@@ -1505,7 +1572,9 @@ fun FacebookVideoPostCard(
     onRequireLogin: () -> Unit,
     onNavigateToCreatorProfile: (String, String) -> Unit,
     onNavigateToSaved: () -> Unit,
-    dismissedPendingBanners: androidx.compose.runtime.snapshots.SnapshotStateMap<String, Boolean>
+    dismissedPendingBanners: androidx.compose.runtime.snapshots.SnapshotStateMap<String, Boolean>,
+    backgroundResolvedUrls: Map<String, String> = emptyMap(),
+    isUserPaused: Boolean = false
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1536,7 +1605,7 @@ fun FacebookVideoPostCard(
 
     // View Increment Logic
     LaunchedEffect(isPlaying) {
-        if (isPlaying && video.docId.isNotEmpty()) {
+        if (isPlaying && video.docId.isNotEmpty() && video.mediaType != "photo" && video.mediaType != "text") {
             delay(4000) // Count as view after 4 seconds of continuous playing (Standard watch threshold)
             try {
                 val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
@@ -1671,14 +1740,29 @@ fun FacebookVideoPostCard(
                         .padding(horizontal = 12.dp, vertical = 2.dp)
                 ) {
                     if (video.title.isNotEmpty()) {
+                        // Highlighting hashtags in green for the title
+                        val highlightedTitle = remember(video.title) {
+                            androidx.compose.ui.text.buildAnnotatedString {
+                                val words = video.title.split(Regex("(?=\\s)|(?<=\\s)"))
+                                words.forEach { word ->
+                                    if (word.startsWith("#")) {
+                                        pushStyle(androidx.compose.ui.text.SpanStyle(color = PrimaryGreen, fontWeight = FontWeight.Bold))
+                                        append(word)
+                                        pop()
+                                    } else {
+                                        append(word)
+                                    }
+                                }
+                            }
+                        }
                         Text(
-                            text = video.title,
+                            text = highlightedTitle,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
                             color = Color.Black
                         )
                     }
-                    if (video.description.isNotEmpty() && video.description != video.title) {
+                    if (video.mediaType != "video" && video.description.isNotEmpty() && video.description != video.title) {
                         Text(
                             text = video.description,
                             fontSize = 13.sp,
@@ -1713,17 +1797,19 @@ fun FacebookVideoPostCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp, vertical = 8.dp)
-                            .background(bgBrush!!, RoundedCornerShape(12.dp))
-                            .padding(horizontal = 24.dp, vertical = 48.dp),
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(bgBrush!!)
+                            .aspectRatio(16f / 9f) // Fixed 16:9 ratio
+                            .padding(16.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = video.description,
-                            fontSize = 22.sp,
+                            fontSize = 18.sp,
                             color = getPostBackgroundTextColor(bgStyle),
                             textAlign = TextAlign.Center,
                             fontWeight = FontWeight.Bold,
-                            lineHeight = 30.sp
+                            lineHeight = 26.sp
                         )
                     }
                 } else {
@@ -1803,13 +1889,15 @@ fun FacebookVideoPostCard(
                     } else {
                         Box(modifier = Modifier.fillMaxSize()) {
                             if (video.mediaType == "photo") {
-                                val imageUrl = if (video.telegramFileId.isNotEmpty() && !TELEGRAM_PROXY_URL.contains("YOUR_SCRIPT_ID")) {
-                                    "$TELEGRAM_PROXY_URL?action=stream&file_id=${video.telegramFileId}"
-                                } else {
-                                    video.url.ifEmpty { video.videoUri }
-                                }
+                                val imageUrl = backgroundResolvedUrls[video.docId] ?: (
+                                    if (video.telegramFileId.isNotEmpty() && !TELEGRAM_PROXY_URL.contains("YOUR_SCRIPT_ID")) {
+                                        "$TELEGRAM_PROXY_URL?action=stream&file_id=${video.telegramFileId}"
+                                    } else {
+                                        if (video.url.contains(".mp4") || video.url.isEmpty()) video.videoUri else video.url
+                                    }
+                                )
                                 
-                                var isLoadingImage by remember { mutableStateOf(true) }
+                                var isLoadingImage by remember(imageUrl) { mutableStateOf(true) }
                                 
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     // Blurred background to fill any gaps (fixes black screen perception)
@@ -1833,25 +1921,43 @@ fun FacebookVideoPostCard(
                                     }
                                 }
                             } else {
-                                VideoPlayer(
-                                    videoItem = video, 
-                                    isSelected = isPlaying, 
-                                    modifier = Modifier.fillMaxSize()
-                                )
+                                var isPlayerReady by remember { mutableStateOf(false) }
                                 
-                                if (!isPlaying) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .clickable { onPlayClick() }
-                                            .background(Color.Black.copy(alpha = 0.1f)), // Subtle tint
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        if (video.thumbnailUrl.isNotEmpty() || getYoutubeThumbnail(video.videoUri).isNotEmpty()) {
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    VideoPlayer(
+                                        videoItem = video, 
+                                        isSelected = isPlaying, 
+                                        shouldPlay = !isUserPaused,
+                                        modifier = Modifier.fillMaxSize(),
+                                        resolvedUrlsMap = backgroundResolvedUrls,
+                                        onReadyChange = { isPlayerReady = it }
+                                    )
+                                    
+                                    // Show loading shimmer or thumbnail until player is ready
+                                    if (isPlaying && !isPlayerReady) {
+                                        VideoShimmer()
+                                    }
+                                    
+                                    if (!isPlaying || isUserPaused) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clickable { onPlayClick() }
+                                                .background(if (!isPlaying) Color.Black.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.3f)), // Darker overlay if paused
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                        val thumbUrl: String = video.thumbnailUrl.ifEmpty { 
+                                            if (video.mediaType == "photo") {
+                                                backgroundResolvedUrls[video.docId] ?: ""
+                                            } else {
+                                                getYoutubeThumbnail(video.videoUri) 
+                                            }
+                                        }
+                                        
+                                        if (thumbUrl.isNotBlank()) {
                                              androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
-                                                 val imageUrl = if (video.thumbnailUrl.isNotEmpty()) video.thumbnailUrl else getYoutubeThumbnail(video.videoUri)
                                                  coil.compose.AsyncImage(
-                                                     model = imageUrl,
+                                                     model = thumbUrl,
                                                      contentDescription = null,
                                                      modifier = Modifier.fillMaxSize(),
                                                      contentScale = androidx.compose.ui.layout.ContentScale.Crop
@@ -1919,10 +2025,14 @@ fun FacebookVideoPostCard(
                 
                 // Right side: Views & Shares
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "${formatNumber(video.viewsCount)} views", fontSize = 12.sp, color = Color.Gray)
+                    if (video.mediaType != "photo" && video.mediaType != "text") {
+                        Text(text = "${formatNumber(video.viewsCount)} views", fontSize = 12.sp, color = Color.Gray)
+                    }
                     
                     if (video.sharesCount > 0) {
-                        Text(text = " • ", color = Color.Gray, fontSize = 12.sp)
+                        if (video.mediaType != "photo" && video.mediaType != "text") {
+                            Text(text = " • ", color = Color.Gray, fontSize = 12.sp)
+                        }
                         Text(text = "${formatNumber(video.sharesCount)} shares", fontSize = 12.sp, color = Color.Gray)
                     }
                 }
@@ -2498,9 +2608,10 @@ private fun getPostBackgroundTextColor(styleId: String): Color {
 fun TextPostDialog(
     initialImageUri: Uri? = null,
     onDismiss: () -> Unit,
-    onPost: (String, String, String, Uri?) -> Unit
+    onPost: (title: String, content: String, bgStyle: String, visibility: String, imageUri: Uri?) -> Unit
 ) {
     var text by remember { mutableStateOf("") }
+    var titleText by remember { mutableStateOf("") }
     var backgroundStyle by remember { mutableStateOf("none") }
     var visibilityMode by remember { mutableStateOf("public") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(initialImageUri) }
@@ -2553,7 +2664,7 @@ fun TextPostDialog(
                     Button(
                         onClick = { 
                             if (text.trim().isNotEmpty() || selectedImageUri != null) {
-                                onPost(text, backgroundStyle, visibilityMode, selectedImageUri) 
+                                onPost(titleText, text, backgroundStyle, visibilityMode, selectedImageUri) 
                             }
                         },
                         enabled = text.trim().isNotEmpty() || selectedImageUri != null,
@@ -2587,7 +2698,10 @@ fun TextPostDialog(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        val userName = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.displayName ?: "User"
+                        val profilePrefs = context.getSharedPreferences("profile_prefs", android.content.Context.MODE_PRIVATE)
+                        val userName = profilePrefs.getString("user_name", null)
+                            ?: com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.displayName
+                            ?: "User"
                         Text(userName, fontWeight = FontWeight.Bold, color = Color.Black)
                         Spacer(modifier = Modifier.height(4.dp))
                         
@@ -2674,65 +2788,59 @@ fun TextPostDialog(
                 val isStyled = backgroundStyle != "none" && selectedImageUri == null
                 val bgBrush = if (isStyled) getPostBackgroundBrush(backgroundStyle) else null
                 
+                val scrollState = rememberScrollState()
+                
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
                         .padding(horizontal = 16.dp)
                 ) {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .then(
-                                    if (isStyled) {
-                                        Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .background(bgBrush!!)
-                                    } else {
-                                        Modifier.weight(1f)
-                                    }
-                                )
-                                .padding(if (isStyled) 20.dp else 0.dp),
-                            contentAlignment = if (isStyled) Alignment.Center else Alignment.TopStart
-                        ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState)
+                    ) {
+                        // Title/Option input if photo is selected
+                        if (selectedImageUri != null) {
                             TextField(
-                                value = text,
-                                onValueChange = { text = it },
-                                modifier = Modifier.fillMaxWidth(),
+                                value = titleText,
+                                onValueChange = { if (it.length <= 40) titleText = it },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
                                 placeholder = {
                                     Text(
-                                        text = if (isEnglish) "What's on your mind?" else "আপনার মনের কথা শেয়ার করুন...",
-                                        fontSize = if (isStyled) 24.sp else 20.sp,
-                                        fontWeight = if (isStyled) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isStyled) Color.White.copy(alpha = 0.6f) else Color.Gray,
-                                        textAlign = if (isStyled) TextAlign.Center else TextAlign.Start,
-                                        modifier = Modifier.fillMaxWidth()
+                                        text = if (isEnglish) "Enter post title..." else "পোস্টের শিরোনাম লিখুন...",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.Gray
                                     )
                                 },
+                                singleLine = true,
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    focusedTextColor = if (isStyled) Color.White else Color.Black,
-                                    unfocusedTextColor = if (isStyled) Color.White else Color.Black
+                                    focusedIndicatorColor = PrimaryGreen,
+                                    unfocusedIndicatorColor = Color(0xFFE2E8F0),
+                                    focusedTextColor = Color.Black,
+                                    unfocusedTextColor = Color.Black
                                 ),
                                 textStyle = androidx.compose.ui.text.TextStyle(
-                                    fontSize = if (isStyled) 24.sp else 20.sp,
-                                    fontWeight = if (isStyled) FontWeight.Bold else FontWeight.Normal,
-                                    textAlign = if (isStyled) TextAlign.Center else TextAlign.Start
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             )
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
                         }
                         
-                        // Selected Image Preview (rendered if photo attached)
+                        // Selected Image Preview (placed exactly below the option to enter the title)
                         if (selectedImageUri != null) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(200.dp)
+                                    .wrapContentHeight()
                                     .padding(vertical = 8.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp)),
@@ -2741,8 +2849,8 @@ fun TextPostDialog(
                                 coil.compose.AsyncImage(
                                     model = selectedImageUri,
                                     contentDescription = "Selected Photo Preview",
-                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
+                                    contentScale = androidx.compose.ui.layout.ContentScale.FillWidth, // Shows the FULL photo with no cropping
+                                    modifier = Modifier.fillMaxWidth().wrapContentHeight()
                                 )
                                 
                                 IconButton(
@@ -2762,6 +2870,58 @@ fun TextPostDialog(
                                     )
                                 }
                             }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
+                        // Text input for post body/description
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(
+                                    if (isStyled) {
+                                        Modifier
+                                            .aspectRatio(16f / 9f) // Fixed 16:9 ratio for styled posts
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(bgBrush!!)
+                                    } else {
+                                        Modifier.wrapContentHeight()
+                                    }
+                                )
+                                .padding(if (isStyled) 16.dp else 0.dp),
+                            contentAlignment = if (isStyled) Alignment.Center else Alignment.TopStart
+                        ) {
+                            TextField(
+                                value = text,
+                                onValueChange = { text = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = {
+                                    Text(
+                                        text = if (isEnglish) {
+                                            if (selectedImageUri != null) "Write a description for your photo..." else "What's on your mind?"
+                                        } else {
+                                            if (selectedImageUri != null) "আপনার ছবির বিবরণ লিখুন..." else "আপনার মনের কথা শেয়ার করুন..."
+                                        },
+                                        fontSize = if (isStyled) 20.sp else 16.sp,
+                                        fontWeight = if (isStyled) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isStyled) Color.White.copy(alpha = 0.6f) else Color.Gray,
+                                        textAlign = if (isStyled) TextAlign.Center else TextAlign.Start,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                },
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    focusedTextColor = if (isStyled) Color.White else Color.Black,
+                                    unfocusedTextColor = if (isStyled) Color.White else Color.Black
+                                ),
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    fontSize = if (isStyled) 20.sp else 16.sp,
+                                    fontWeight = if (isStyled) FontWeight.Bold else FontWeight.Normal,
+                                    textAlign = if (isStyled) TextAlign.Center else TextAlign.Start
+                                )
+                            )
                         }
                     }
                 }
@@ -2936,3 +3096,5 @@ fun VideoPostCardSkeleton() {
         }
     }
 }
+}
+
