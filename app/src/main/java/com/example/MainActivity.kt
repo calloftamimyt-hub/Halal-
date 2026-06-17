@@ -450,6 +450,7 @@ class MainActivity : ComponentActivity() {
                                             onNavigateToCalendar = { isCalendarPageOpen = true },
                                             onNavigateToQibla = { isQiblaPageOpen = true },
                                             onNavigateToTools = { selectedTab = "tools" },
+                                            onNavigateToAllahNames = { selectedTab = "allah_names" },
                                             onOpenNotificationsPage = { isNotificationsPageOpen = true }
                                         )
                                     } else if (selectedTab == "location") {
@@ -467,8 +468,11 @@ class MainActivity : ComponentActivity() {
                                             onNavigateToQuran = { selectedTab = "quran" },
                                             onNavigateToZakat = { isZakatPageOpen = true },
                                             onNavigateToCalendar = { isCalendarPageOpen = true },
-                                            onNavigateToQibla = { isQiblaPageOpen = true }
+                                            onNavigateToQibla = { isQiblaPageOpen = true },
+                                            onNavigateToAllahNames = { selectedTab = "allah_names" }
                                         )
+                                    } else if (selectedTab == "allah_names") {
+                                        NamesOfAllahScreen(onBack = { selectedTab = "tools" })
                                     } else if (selectedTab == "profile") {
                                         ProfileScreen(
                                             onNavigateToTracker = { selectedTab = "tracker" },
@@ -757,6 +761,7 @@ fun HomeScreen(
     onNavigateToCalendar: () -> Unit,
     onNavigateToQibla: () -> Unit,
     onNavigateToTools: () -> Unit,
+    onNavigateToAllahNames: () -> Unit,
     onOpenNotificationsPage: () -> Unit
 ) {
     var isPrayerExpanded by remember { mutableStateOf(false) }
@@ -1230,6 +1235,7 @@ fun CategoryGrid(
     onNavigateToZakat: () -> Unit,
     onNavigateToCalendar: () -> Unit,
     onNavigateToQibla: () -> Unit,
+    onNavigateToAllahNames: () -> Unit = {},
     maxItems: Int? = null
 ) {
     val items = if (GlobalLanguage.isEnglish) {
@@ -1291,6 +1297,8 @@ fun CategoryGrid(
                                         onNavigateToCalendar()
                                     } else if (item.first == "কিবলা" || item.first == "Qibla") {
                                         onNavigateToQibla()
+                                    } else if (item.first == "আল্লাহর নাম" || item.first == "Allah's Names") {
+                                        onNavigateToAllahNames()
                                     }
                                 }
                         ) {
@@ -1523,7 +1531,8 @@ fun ToolsScreen(
     onNavigateToQuran: () -> Unit,
     onNavigateToZakat: () -> Unit,
     onNavigateToCalendar: () -> Unit,
-    onNavigateToQibla: () -> Unit
+    onNavigateToQibla: () -> Unit,
+    onNavigateToAllahNames: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
@@ -1551,7 +1560,8 @@ fun ToolsScreen(
             onNavigateToQuran,
             onNavigateToZakat,
             onNavigateToCalendar,
-            onNavigateToQibla
+            onNavigateToQibla,
+            onNavigateToAllahNames = onNavigateToAllahNames
         )
     }
 }
