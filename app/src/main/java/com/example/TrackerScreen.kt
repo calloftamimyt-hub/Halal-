@@ -108,7 +108,7 @@ fun TrackerScreen() {
 
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
                 modifier = Modifier.weight(1f).padding(horizontal = 12.dp)
             ) {
@@ -179,7 +179,7 @@ fun TrackerScreen() {
         // Obligatory Prayers Checklist (৫ ওয়াক্ত ফরজ সালাত)
         Card(
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(16.dp),
             border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
             modifier = Modifier
                 .fillMaxWidth()
@@ -242,7 +242,7 @@ fun TrackerScreen() {
         // Digital Live Tasbih Counter Card (লাইভ জিকির ও তসবীহ)
         Card(
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(16.dp),
             border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
             modifier = Modifier
                 .fillMaxWidth()
@@ -343,7 +343,7 @@ fun TrackerScreen() {
         // Daily Good Deed Habits (নেক আমল ট্র্যাকার)
         Card(
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(16.dp),
             border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
             modifier = Modifier
                 .fillMaxWidth()
@@ -414,7 +414,7 @@ fun TrackerScreen() {
         
         Card(
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(16.dp),
             border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
             modifier = Modifier
                 .fillMaxWidth()
@@ -448,7 +448,7 @@ fun TrackerScreen() {
 fun PrayerProgressCard(completedCount: Int) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
         modifier = Modifier
             .fillMaxWidth()

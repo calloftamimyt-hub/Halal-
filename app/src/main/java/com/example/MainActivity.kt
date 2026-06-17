@@ -71,7 +71,6 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalPermissionsApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        VideoCacheManager.initCacheAsync(applicationContext)
         handleIntent(intent)
         enableEdgeToEdge()
         setContent {
@@ -343,12 +342,7 @@ class MainActivity : ComponentActivity() {
 
                         val multiplePermissionsState = rememberMultiplePermissionsState(permissions)
                         var selectedTab by remember { mutableStateOf("home") }
-                        var videoActiveSubTab by remember { mutableStateOf("home") }
                         
-                        var selectedCreatorUid by remember { mutableStateOf<String?>(null) }
-                        var selectedCreatorName by remember { mutableStateOf("") }
-                        var isSavedPostsOpen by remember { mutableStateOf(false) }
-                        var isFriendsPageOpen by remember { mutableStateOf(false) }
                         var isAlarmPageOpen by remember { mutableStateOf(false) }
                         var isZakatPageOpen by remember { mutableStateOf(false) }
                         var isCalendarPageOpen by remember { mutableStateOf(false) }
@@ -385,9 +379,9 @@ class MainActivity : ComponentActivity() {
                         }
 
                         val view = LocalView.current
-                        val isProfileOverlayOpen = selectedCreatorUid != null || isSavedPostsOpen || isFriendsPageOpen || isAlarmPageOpen || isZakatPageOpen || isCalendarPageOpen || isQiblaPageOpen || isNotificationsPageOpen || isAddAlarmPageOpen || isParentalPageOpen || isPrayerPageOpen || isCreateCircleAlertOpen
-                        val isDarkStatusBar = (selectedTab == "create") && !isProfileOverlayOpen && FirebaseAuth.getInstance().currentUser != null
-                        val isAuthPage = (selectedTab == "create") && FirebaseAuth.getInstance().currentUser == null
+                        val isProfileOverlayOpen = isAlarmPageOpen || isZakatPageOpen || isCalendarPageOpen || isQiblaPageOpen || isNotificationsPageOpen || isAddAlarmPageOpen || isParentalPageOpen || isPrayerPageOpen || isCreateCircleAlertOpen
+                        val isDarkStatusBar = false
+                        val isAuthPage = false
                         
                         LaunchedEffect(isDarkStatusBar, isProfileOverlayOpen, isAuthPage, view) {
                             val window = (view.context as Activity).window
@@ -413,9 +407,6 @@ class MainActivity : ComponentActivity() {
                                 AppBottomNavigation(selectedTab, isDark = isDarkStatusBar) { 
                                     selectedTab = it 
                                     if (isProfileOverlayOpen) {
-                                        selectedCreatorUid = null
-                                        isSavedPostsOpen = false
-                                        isFriendsPageOpen = false
                                         isAlarmPageOpen = false
                                         isZakatPageOpen = false
                                         isCalendarPageOpen = false
@@ -433,7 +424,7 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .then(
-                                        if (isDarkStatusBar || isProfileOverlayOpen || selectedTab == "video") {
+                                        if (isProfileOverlayOpen) {
                                             Modifier.padding(bottom = innerPadding.calculateBottomPadding())
                                         } else {
                                             Modifier.padding(innerPadding)
@@ -467,56 +458,12 @@ class MainActivity : ComponentActivity() {
                                         )
                                     } else if (selectedTab == "quran") {
                                         QuranScreen(onBack = { selectedTab = "home" })
-                                    } else if (selectedTab == "video") {
-                                        VideoScreen(
-                                            activeSubTab = videoActiveSubTab,
-                                            onActiveSubTabChange = { videoActiveSubTab = it },
-                                            onRequireLogin = { selectedTab = "create" },
-                                            onNavigateToCreatorProfile = { uid, name ->
-                                                selectedCreatorUid = uid
-                                                selectedCreatorName = name
-                                            },
-                                            onNavigateToSaved = {
-                                                isSavedPostsOpen = true
-                                            },
-                                            onNavigateToFriends = {
-                                                isFriendsPageOpen = true
-                                            },
-                                            onNavigateToCreateCircleAlert = {
-                                                isCreateCircleAlertOpen = true
-                                            },
-                                            isFeedActive = !isProfileOverlayOpen
-                                        )
-                                    } else if (selectedTab == "create") {
-                                        val currentUser = FirebaseAuth.getInstance().currentUser
-                                        if (currentUser == null) {
-                                            var authTab by remember { mutableStateOf("login") }
-                                            if (authTab == "login") {
-                                                LoginScreen(
-                                                    onBack = { selectedTab = "home" },
-                                                    onNavigateToRegister = { authTab = "register" },
-                                                    onLoginSuccess = { selectedTab = "home" }
-                                                )
-                                            } else {
-                                                RegisterScreen(
-                                                    onBack = { selectedTab = "home" },
-                                                    onNavigateToLogin = { authTab = "login" },
-                                                    onRegisterSuccess = { selectedTab = "home" }
-                                                )
-                                            }
-                                        } else {
-                                            CreateVideoScreen(
-                                                onUploadSuccess = { selectedTab = "video" },
-                                                onBack = { selectedTab = "home" }
-                                            )
-                                        }
                                     } else if (selectedTab == "tracker") {
                                         TrackerScreen()
                                     } else if (selectedTab == "profile") {
                                         ProfileScreen(
                                             onNavigateToTracker = { selectedTab = "tracker" },
                                             onNavigateToSettings = { selectedTab = "settings" },
-                                            onNavigateToSaved = { isSavedPostsOpen = true },
                                             onNavigateToParentalControl = { isParentalPageOpen = true }
                                         )
                                     } else if (selectedTab == "settings") {
@@ -531,46 +478,8 @@ class MainActivity : ComponentActivity() {
                                     }
                                 
                                 // Overlay status bar header purely for visual gradient, without padding the content below
-                                if (!isDarkStatusBar && selectedCreatorUid == null) {
+                                if (!isDarkStatusBar) {
                                     GlassStatusBarHeader()
-                                }
-
-                                // Full Screen Overlays
-                                if (selectedCreatorUid != null) {
-                                    CreatorProfileScreen(
-                                        creatorUid = selectedCreatorUid!!,
-                                        creatorName = selectedCreatorName,
-                                        onBack = { 
-                                            selectedCreatorUid = null 
-                                            // Reset status bar icons when coming back
-                                            (view.context as android.app.Activity).window.statusBarColor = android.graphics.Color.TRANSPARENT
-                                            WindowCompat.getInsetsController((view.context as android.app.Activity).window, view).isAppearanceLightStatusBars = !isDarkStatusBar
-                                        },
-                                        onVideoClick = { video ->
-                                            selectedCreatorUid = null
-                                            selectedTab = "video"
-                                            videoActiveSubTab = "home"
-                                            (view.context as android.app.Activity).window.statusBarColor = android.graphics.Color.TRANSPARENT
-                                            WindowCompat.getInsetsController((view.context as android.app.Activity).window, view).isAppearanceLightStatusBars = false
-                                        }
-                                    )
-                                }
-
-                                if (isFriendsPageOpen) {
-                                    androidx.compose.animation.AnimatedVisibility(
-                                        visible = isFriendsPageOpen,
-                                        enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + androidx.compose.animation.fadeIn(),
-                                        exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + androidx.compose.animation.fadeOut()
-                                    ) {
-                                        FriendsScreen(
-                                            onBack = { isFriendsPageOpen = false },
-                                            onNavigateToCreatorProfile = { uid, name ->
-                                                selectedCreatorUid = uid
-                                                selectedCreatorName = name
-                                                isFriendsPageOpen = false
-                                            }
-                                        )
-                                    }
                                 }
 
                                 if (isParentalPageOpen) {
@@ -583,22 +492,6 @@ class MainActivity : ComponentActivity() {
                                             onBack = { isParentalPageOpen = false }
                                         )
                                     }
-                                }
-                                
-                                if (isSavedPostsOpen) {
-                                    SavedPostsScreen(
-                                        onBack = {
-                                            isSavedPostsOpen = false
-                                        },
-                                        onVideoClick = { video ->
-                                            isSavedPostsOpen = false
-                                            selectedTab = "video"
-                                            videoActiveSubTab = "home"
-                                            // Logic to play this specific video would go here if pager index was shared
-                                            (view.context as android.app.Activity).window.statusBarColor = android.graphics.Color.TRANSPARENT
-                                            WindowCompat.getInsetsController((view.context as android.app.Activity).window, view).isAppearanceLightStatusBars = false
-                                        }
-                                    )
                                 }
 
                                 if (isAlarmPageOpen) {
@@ -720,63 +613,6 @@ fun AppBottomNavigation(selectedTab: String, isDark: Boolean, onTabSelected: (St
             },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = PrimaryGreen,
-                selectedTextColor = PrimaryGreen,
-                indicatorColor = Color.Transparent,
-                unselectedIconColor = navUnselectedColor,
-                unselectedTextColor = navUnselectedColor
-            )
-        )
-        NavigationBarItem(
-            selected = selectedTab == "video",
-            onClick = { onTabSelected("video") },
-            icon = { 
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .then(
-                            if (selectedTab == "video") Modifier.border(2.dp, PrimaryGreen, CircleShape) else Modifier
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (selectedTab == "video") Icons.Filled.OndemandVideo else Icons.Outlined.OndemandVideo, 
-                        contentDescription = "Video",
-                        modifier = Modifier.size(24.dp)
-                    ) 
-                }
-            },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = PrimaryGreen,
-                selectedTextColor = PrimaryGreen,
-                indicatorColor = Color.Transparent,
-                unselectedIconColor = navUnselectedColor, 
-                unselectedTextColor = navUnselectedColor
-            )
-        )
-        NavigationBarItem(
-            selected = selectedTab == "create",
-            onClick = { onTabSelected("create") },
-            icon = {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .background(if (selectedTab == "create") PrimaryGreen else navUnselectedColor.copy(alpha = 0.15f), CircleShape)
-                        .then(
-                            if (selectedTab == "create") Modifier.border(2.dp, PrimaryGreen, CircleShape) else Modifier
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "তৈরি",
-                        tint = if (selectedTab == "create") Color.White else navUnselectedColor,
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
-            },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = Color.White,
                 selectedTextColor = PrimaryGreen,
                 indicatorColor = Color.Transparent,
                 unselectedIconColor = navUnselectedColor,

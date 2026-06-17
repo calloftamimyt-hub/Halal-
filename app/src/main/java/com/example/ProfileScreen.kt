@@ -74,7 +74,6 @@ private fun formatTrackerDateToBengali(dateKey: String): String {
 fun ProfileScreen(
     onNavigateToTracker: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToSaved: () -> Unit,
     onNavigateToParentalControl: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -184,7 +183,6 @@ fun ProfileScreen(
     }
     
     // Counts
-    var savedPostCount by remember { mutableStateOf(sharedPrefs.getInt("saved_posts", 0)) }
     var savedDuaCount by remember { mutableStateOf(sharedPrefs.getInt("saved_duas", 0)) }
     var bookmarkedAyahCount by remember { mutableStateOf(sharedPrefs.getInt("bookmarked_ayahs", 0)) }
     
@@ -527,16 +525,6 @@ fun ProfileScreen(
                             onClick = {
                                 showWebsiteBlockerFullScreen = true
                             }
-                        )
-
-                        ProfileDivider()
-
-                        // Saved posts
-                        ProfileOptionRow(
-                            title = "সেভ করা পোস্ট",
-                            icon = Icons.Outlined.BookmarkBorder,
-                            iconColor = Color(0xFFA855F7), // Purple
-                            onClick = onNavigateToSaved
                         )
 
                         ProfileDivider()

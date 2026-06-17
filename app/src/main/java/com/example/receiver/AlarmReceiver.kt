@@ -175,6 +175,7 @@ class AlarmReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .build()
 
+        ScreenWakeHelper.wakeScreen(context)
         notificationManager.notify(prayerName.hashCode(), notification)
     }
 
@@ -219,6 +220,7 @@ class AlarmReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .build()
 
+        ScreenWakeHelper.wakeScreen(context)
         notificationManager.notify(prayerName.hashCode() + 500, notification)
     }
 
@@ -266,6 +268,7 @@ class AlarmReceiver : BroadcastReceiver() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .build()
 
+        ScreenWakeHelper.wakeScreen(context)
         notificationManager.notify(alarmId + 3000, notification)
         
         // Also start the activity directly as fallback for some devices

@@ -107,13 +107,6 @@
         </service>
 
         <service
-            android:name=".VideoUploadService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync">
-        </service>
-        
-        <service
             android:name=".AlertUploadService"
             android:enabled="true"
             android:exported="false"
