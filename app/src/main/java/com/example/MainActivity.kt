@@ -449,7 +449,8 @@ class MainActivity : ComponentActivity() {
                                             onNavigateToZakat = { isZakatPageOpen = true },
                                             onNavigateToCalendar = { isCalendarPageOpen = true },
                                             onNavigateToQibla = { isQiblaPageOpen = true },
-                                             onOpenNotificationsPage = { isNotificationsPageOpen = true }
+                                            onNavigateToTools = { selectedTab = "tools" },
+                                            onOpenNotificationsPage = { isNotificationsPageOpen = true }
                                         )
                                     } else if (selectedTab == "location") {
                                         LocationSelectionScreen(
@@ -460,6 +461,14 @@ class MainActivity : ComponentActivity() {
                                         QuranScreen(onBack = { selectedTab = "home" })
                                     } else if (selectedTab == "tracker") {
                                         TrackerScreen()
+                                    } else if (selectedTab == "tools") {
+                                        ToolsScreen(
+                                            onNavigateToTracker = { selectedTab = "tracker" },
+                                            onNavigateToQuran = { selectedTab = "quran" },
+                                            onNavigateToZakat = { isZakatPageOpen = true },
+                                            onNavigateToCalendar = { isCalendarPageOpen = true },
+                                            onNavigateToQibla = { isQiblaPageOpen = true }
+                                        )
                                     } else if (selectedTab == "profile") {
                                         ProfileScreen(
                                             onNavigateToTracker = { selectedTab = "tracker" },
@@ -676,6 +685,34 @@ fun AppBottomNavigation(selectedTab: String, isDark: Boolean, onTabSelected: (St
             )
         )
         NavigationBarItem(
+            selected = selectedTab == "tools",
+            onClick = { onTabSelected("tools") },
+            icon = { 
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .then(
+                            if (selectedTab == "tools") Modifier.border(2.dp, PrimaryGreen, CircleShape) else Modifier
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (selectedTab == "tools") Icons.Filled.GridView else Icons.Outlined.GridView, 
+                        contentDescription = "Tools",
+                        modifier = Modifier.size(24.dp)
+                    ) 
+                }
+            },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = PrimaryGreen,
+                selectedTextColor = PrimaryGreen,
+                indicatorColor = Color.Transparent,
+                unselectedIconColor = navUnselectedColor,
+                unselectedTextColor = navUnselectedColor
+            )
+        )
+        NavigationBarItem(
             selected = selectedTab == "profile",
             onClick = { onTabSelected("profile") },
             icon = { 
@@ -719,6 +756,7 @@ fun HomeScreen(
     onNavigateToZakat: () -> Unit,
     onNavigateToCalendar: () -> Unit,
     onNavigateToQibla: () -> Unit,
+    onNavigateToTools: () -> Unit,
     onOpenNotificationsPage: () -> Unit
 ) {
     var isPrayerExpanded by remember { mutableStateOf(false) }
@@ -889,7 +927,13 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(LocalAppStrings.current.categories, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
-            Text(if (GlobalLanguage.isEnglish) "See All >" else "সবগুলো >", color = PrimaryGreen, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Text(
+                if (GlobalLanguage.isEnglish) "See All >" else "সবগুলো >", 
+                color = PrimaryGreen, 
+                fontSize = 12.sp, 
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.clickable { onNavigateToTools() }
+            )
         }
         
         Spacer(modifier = Modifier.height(12.dp))
@@ -900,7 +944,8 @@ fun HomeScreen(
             onNavigateToQuran,
             onNavigateToZakat,
             onNavigateToCalendar,
-            onNavigateToQibla
+            onNavigateToQibla,
+            maxItems = 8
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -1184,7 +1229,8 @@ fun CategoryGrid(
     onNavigateToQuran: () -> Unit,
     onNavigateToZakat: () -> Unit,
     onNavigateToCalendar: () -> Unit,
-    onNavigateToQibla: () -> Unit
+    onNavigateToQibla: () -> Unit,
+    maxItems: Int? = null
 ) {
     val items = if (GlobalLanguage.isEnglish) {
         listOf(
@@ -1218,14 +1264,16 @@ fun CategoryGrid(
         )
     }
 
+    val displayItems = if (maxItems != null) items.take(maxItems) else items
+
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        val numRows = (items.size + 3) / 4
+        val numRows = (displayItems.size + 3) / 4
         for (row in 0 until numRows) {
             Row(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 for (col in 0..3) {
                     val index = row * 4 + col
-                    if (index < items.size) {
-                        val item = items[index]
+                    if (index < displayItems.size) {
+                        val item = displayItems[index]
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
@@ -1466,5 +1514,44 @@ fun SocialBlockerOverlay(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun ToolsScreen(
+    onNavigateToTracker: () -> Unit,
+    onNavigateToQuran: () -> Unit,
+    onNavigateToZakat: () -> Unit,
+    onNavigateToCalendar: () -> Unit,
+    onNavigateToQibla: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+    ) {
+        // App Bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                if (GlobalLanguage.isEnglish) "All Tools" else "সকল ক্যাটাগরি", 
+                fontWeight = FontWeight.Bold, 
+                color = TextDark, 
+                fontSize = 20.sp
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Categories Grid
+        CategoryGrid(
+            onNavigateToTracker, 
+            onNavigateToQuran,
+            onNavigateToZakat,
+            onNavigateToCalendar,
+            onNavigateToQibla
+        )
     }
 }
