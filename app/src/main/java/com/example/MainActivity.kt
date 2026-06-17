@@ -620,6 +620,34 @@ fun AppBottomNavigation(selectedTab: String, isDark: Boolean, onTabSelected: (St
             )
         )
         NavigationBarItem(
+            selected = selectedTab == "quran",
+            onClick = { onTabSelected("quran") },
+            icon = { 
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .then(
+                            if (selectedTab == "quran") Modifier.border(2.dp, PrimaryGreen, CircleShape) else Modifier
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (selectedTab == "quran") Icons.Filled.MenuBook else Icons.Outlined.MenuBook, 
+                        contentDescription = "Quran",
+                        modifier = Modifier.size(24.dp)
+                    ) 
+                }
+            },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = PrimaryGreen,
+                selectedTextColor = PrimaryGreen,
+                indicatorColor = Color.Transparent,
+                unselectedIconColor = navUnselectedColor,
+                unselectedTextColor = navUnselectedColor
+            )
+        )
+        NavigationBarItem(
             selected = selectedTab == "tracker",
             onClick = { onTabSelected("tracker") },
             icon = { 
@@ -1191,49 +1219,54 @@ fun CategoryGrid(
     }
 
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        for (row in 0..2) {
+        val numRows = (items.size + 3) / 4
+        for (row in 0 until numRows) {
             Row(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 for (col in 0..3) {
                     val index = row * 4 + col
-                    val item = items[index]
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .width(68.dp)
-                            .clip(CircleShape)
-                            .clickable {
-                                if (item.first == "আমল শিক্ষা" || item.first == "তাসবিহ" || item.first == "নামাজ শিক্ষা" || 
-                                    item.first == "Amal Learning" || item.first == "Tasbih" || item.first == "Salah Learning") {
-                                    onNavigateToTracker()
-                                } else if (item.first == "আল কুরআন" || item.first == "Al Quran") {
-                                    onNavigateToQuran()
-                                } else if (item.first == "যাকাত" || item.first == "Zakat") {
-                                    onNavigateToZakat()
-                                } else if (item.first == "ক্যালেন্ডার" || item.first == "Calendar") {
-                                    onNavigateToCalendar()
-                                } else if (item.first == "কিবলা" || item.first == "Qibla") {
-                                    onNavigateToQibla()
-                                }
-                            }
-                    ) {
-                        Box(
+                    if (index < items.size) {
+                        val item = items[index]
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
-                                .size(50.dp)
-                                .background(
-                                    Color(
-                                        red = (item.third.red * 0.82f).coerceIn(0f, 1f),
-                                        green = (item.third.green * 0.82f).coerceIn(0f, 1f),
-                                        blue = (item.third.blue * 0.82f).coerceIn(0f, 1f),
-                                        alpha = 1f
-                                    ), 
-                                    CircleShape
-                                ),
-                            contentAlignment = Alignment.Center
+                                .width(68.dp)
+                                .clip(CircleShape)
+                                .clickable {
+                                    if (item.first == "আমল শিক্ষা" || item.first == "তাসবিহ" || item.first == "নামাজ শিক্ষা" || 
+                                        item.first == "Amal Learning" || item.first == "Tasbih" || item.first == "Salah Learning") {
+                                        onNavigateToTracker()
+                                    } else if (item.first == "আল কুরআন" || item.first == "Al Quran") {
+                                        onNavigateToQuran()
+                                    } else if (item.first == "যাকাত" || item.first == "Zakat") {
+                                        onNavigateToZakat()
+                                    } else if (item.first == "ক্যালেন্ডার" || item.first == "Calendar") {
+                                        onNavigateToCalendar()
+                                    } else if (item.first == "কিবলা" || item.first == "Qibla") {
+                                        onNavigateToQibla()
+                                    }
+                                }
                         ) {
-                            Icon(item.second, contentDescription = item.first, tint = Color.White, modifier = Modifier.size(24.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(50.dp)
+                                    .background(
+                                        Color(
+                                            red = (item.third.red * 0.82f).coerceIn(0f, 1f),
+                                            green = (item.third.green * 0.82f).coerceIn(0f, 1f),
+                                            blue = (item.third.blue * 0.82f).coerceIn(0f, 1f),
+                                            alpha = 1f
+                                        ), 
+                                        CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(item.second, contentDescription = item.first, tint = Color.White, modifier = Modifier.size(24.dp))
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(item.first, color = TextDark, fontSize = 11.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Medium, maxLines = 1)
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(item.first, color = TextDark, fontSize = 11.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Medium, maxLines = 1)
+                    } else {
+                        Spacer(modifier = Modifier.width(68.dp))
                     }
                 }
             }
