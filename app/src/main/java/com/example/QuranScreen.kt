@@ -5,6 +5,14 @@ import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import java.net.HttpURLConnection
+import java.net.URL
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -273,6 +281,73 @@ fun getNasVerses(): List<Verse> = listOf(
     Verse(5, "الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ", "আল্লাযী ইউওয়াসউইসু ফী ছুদূরিন নাস", "যে মানুষের অন্তরে প্রতিনিয়ত কুপ্ররোচনা ও সন্দেহ সৃষ্টি করে।"),
     Verse(6, "مِنَ الْجِنَّةِ وَالنَّاسِ", "মিনাল জিন্নাতি ওয়ান নাস", "সে শয়তান জ্বিন জাতি ও মানুষের মধ্য হতে অন্তর্ভুক্ত।")
 )
+
+suspend fun fetchSurahVerses(surahId: Int): List<Verse> = withContext(Dispatchers.IO) {
+    val result = mutableListOf<Verse>()
+    var connection: HttpURLConnection? = null
+    try {
+        val url = URL("https://api.alquran.cloud/v1/surah/$surahId/editions/quran-uthmani,bn.bengali")
+        connection = url.openConnection() as HttpURLConnection
+        connection.requestMethod = "GET"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+        
+        if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+            val reader = BufferedReader(InputStreamReader(connection.inputStream))
+            val sb = java.lang.StringBuilder()
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                sb.append(line)
+            }
+            reader.close()
+            
+            val jsonResponse = JSONObject(sb.toString())
+            val status = jsonResponse.optString("status", "")
+            if (status == "OK") {
+                val dataArray = jsonResponse.getJSONArray("data")
+                if (dataArray.length() >= 2) {
+                    val arabicEdition = dataArray.getJSONObject(0)
+                    val bengaliEdition = dataArray.getJSONObject(1)
+                    
+                    val arabicAyahs = arabicEdition.getJSONArray("ayahs")
+                    val bengaliAyahs = bengaliEdition.getJSONArray("ayahs")
+                    
+                    val length = minOf(arabicAyahs.length(), bengaliAyahs.length())
+                    for (i in 0 until length) {
+                        val arObj = arabicAyahs.getJSONObject(i)
+                        val bnObj = bengaliAyahs.getJSONObject(i)
+                        
+                        val numberInSurah = arObj.getInt("numberInSurah")
+                        var arText = arObj.getString("text")
+                        val bnText = bnObj.getString("text")
+                        
+                        val bismillahPrefix = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ"
+                        if (surahId != 1 && surahId != 9 && numberInSurah == 1 && arText.startsWith(bismillahPrefix)) {
+                            val candidate = arText.substring(bismillahPrefix.length).trim()
+                            if (candidate.isNotEmpty()) {
+                                arText = candidate
+                            }
+                        }
+                        
+                        result.add(
+                            Verse(
+                                number = numberInSurah,
+                                arabic = arText,
+                                pronunciation = "",
+                                translation = bnText
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    } finally {
+        connection?.disconnect()
+    }
+    result
+}
 
 fun generateGenericVerses(surahId: Int, surahName: String, count: Int): List<Verse> {
     val versesList = mutableListOf<Verse>()
@@ -633,9 +708,41 @@ fun SurahReadScreen(surah: Surah, onBack: () -> Unit) {
     var showPronunciation by remember { mutableStateOf(true) }
     var showTranslation by remember { mutableStateOf(true) }
     
+    var loadedVerses by remember { mutableStateOf(surah.verses) }
+    var isLoading by remember { mutableStateOf(false) }
+    var isError by remember { mutableStateOf(false) }
+    var triggerFetchCount by remember { mutableStateOf(0) }
+
+    LaunchedEffect(surah.id, triggerFetchCount) {
+        val hardcodedIds = setOf(1, 103, 108, 112, 113, 114)
+        if (surah.id in hardcodedIds) {
+            loadedVerses = surah.verses
+            isLoading = false
+            isError = false
+            return@LaunchedEffect
+        }
+        
+        isLoading = true
+        isError = false
+        try {
+            val verses = fetchSurahVerses(surah.id)
+            if (verses.isNotEmpty()) {
+                loadedVerses = verses
+                isError = false
+            } else {
+                isError = true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            isError = true
+        } finally {
+            isLoading = false
+        }
+    }
+
     var verseSearchQuery by remember { mutableStateOf("") }
-    val filteredVerses = remember(verseSearchQuery, surah.verses) {
-        surah.verses.filter { v ->
+    val filteredVerses = remember(verseSearchQuery, loadedVerses) {
+        loadedVerses.filter { v ->
             v.translation.contains(verseSearchQuery, ignoreCase = true) ||
                     v.pronunciation.contains(verseSearchQuery, ignoreCase = true) ||
                     v.number.toString() == verseSearchQuery
@@ -979,44 +1086,87 @@ fun SurahReadScreen(surah: Surah, onBack: () -> Unit) {
             singleLine = true
         )
 
-        if (filteredVerses.isEmpty()) {
+        if (isLoading) {
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                Text("কোনো আয়াত পাওয়া যায়নি!", color = Color.Gray, fontSize = 13.sp)
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
+                    CircularProgressIndicator(color = Color(0xFF0F766E))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "পবিত্র সুরার আয়াতসমূহ লোড হচ্ছে...",
+                        color = Color(0xFF0F766E),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
-        } else {
-            LazyColumn(
+        } else if (isError) {
+            Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                contentPadding = PaddingValues(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                contentAlignment = Alignment.Center
             ) {
-                items(filteredVerses) { verse ->
-                    val isPlaying = activePlaybackVerseNo == verse.number
-                    VerseCardItem(
-                        surahId = surah.id,
-                        verse = verse,
-                        showArabic = showArabic,
-                        showPronunciation = showPronunciation,
-                        showTranslation = showTranslation,
-                        arabicFontSize = arabicFontSize,
-                        banglaFontSize = banglaFontSize,
-                        isPlaying = isPlaying,
-                        onPlayClick = {
-                            if (activePlaybackVerseNo == verse.number) {
-                                activePlaybackVerseNo = -1
-                                Toast.makeText(context, "তিলাওয়াত স্থগিত করা হয়েছে", Toast.LENGTH_SHORT).show()
-                            } else {
-                                activePlaybackVerseNo = verse.number
-                                Toast.makeText(context, "আয়াত ${verse.number.toBnString()} তিলাওয়াত শুরু হয়েছে", Toast.LENGTH_SHORT).show()
-                            }
-                        }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "আয়ারসমূহ লোড করা যায়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।",
+                        color = Color.Gray,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = { triggerFetchCount++ },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F766E))
+                    ) {
+                        Text("পুনরায় চেষ্টা করুন", color = Color.White, fontSize = 12.sp)
+                    }
+                }
+            }
+        } else {
+            if (filteredVerses.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("কোনো আয়াত পাওয়া যায়নি!", color = Color.Gray, fontSize = 13.sp)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(filteredVerses) { verse ->
+                        val isPlaying = activePlaybackVerseNo == verse.number
+                        VerseCardItem(
+                            surahId = surah.id,
+                            verse = verse,
+                            showArabic = showArabic,
+                            showPronunciation = showPronunciation,
+                            showTranslation = showTranslation,
+                            arabicFontSize = arabicFontSize,
+                            banglaFontSize = banglaFontSize,
+                            isPlaying = isPlaying,
+                            onPlayClick = {
+                                if (activePlaybackVerseNo == verse.number) {
+                                    activePlaybackVerseNo = -1
+                                    Toast.makeText(context, "তিলাওয়াত স্থগিত করা হয়েছে", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    activePlaybackVerseNo = verse.number
+                                    Toast.makeText(context, "আয়াত ${verse.number.toBnString()} তিলাওয়াত শুরু হয়েছে", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -1115,9 +1265,10 @@ fun VerseCardItem(
                     IconButton(
                         onClick = {
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            val pronunciationText = if (verse.pronunciation.isNotBlank()) "\n\nউচ্চারণ: ${verse.pronunciation}" else ""
                             val clip = android.content.ClipData.newPlainText(
                                 "Quran Verse", 
-                                "${verse.arabic}\n\nউচ্চারণ: ${verse.pronunciation}\n\nঅনুবাদ: ${verse.translation}"
+                                "${verse.arabic}${pronunciationText}\n\nঅনুবাদ: ${verse.translation}"
                             )
                             clipboard.setPrimaryClip(clip)
                             Toast.makeText(context, "আয়াত অনুলিপি (Copy) করা হয়েছে!", Toast.LENGTH_SHORT).show()
@@ -1136,9 +1287,10 @@ fun VerseCardItem(
                         onClick = {
                             val intent = android.content.Intent().apply {
                                 action = android.content.Intent.ACTION_SEND
+                                val pronunciationText = if (verse.pronunciation.isNotBlank()) "\n\nউচ্চারণ: ${verse.pronunciation}" else ""
                                 putExtra(
                                     android.content.Intent.EXTRA_TEXT,
-                                    "আল-কুরআন: সূরা ${surahId}, আয়াত ${verse.number}\n\n${verse.arabic}\n\nউচ্চারণ: ${verse.pronunciation}\n\nঅনুবাদ: ${verse.translation}"
+                                    "আল-কুরআন: সূরা ${surahId}, আয়াত ${verse.number}\n\n${verse.arabic}${pronunciationText}\n\nঅনুবাদ: ${verse.translation}"
                                 )
                                 type = "text/plain"
                             }
@@ -1172,7 +1324,7 @@ fun VerseCardItem(
                 )
             }
 
-            if (showPronunciation) {
+            if (showPronunciation && verse.pronunciation.isNotBlank()) {
                 Text(
                     text = "উচ্চারণ: " + verse.pronunciation,
                     fontSize = (banglaFontSize + 1).sp,
