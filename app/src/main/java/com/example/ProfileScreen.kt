@@ -407,22 +407,25 @@ fun ProfileScreen(
                             
                             Spacer(modifier = Modifier.height(20.dp))
                             
-                            // Log In and Sign Up buttons side by side - both colored green
+                            // Log In and Sign Up buttons side by side adjacent with zero gap
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 24.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    .padding(horizontal = 24.dp)
+                                    .border(1.dp, PrimaryGreen.copy(alpha = 0.2f), RoundedCornerShape(30.dp)),
+                                horizontalArrangement = Arrangement.spacedBy(0.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Button(
                                     onClick = { showLoginScreen = true },
-                                    shape = RoundedCornerShape(30.dp),
+                                    shape = RoundedCornerShape(topStart = 30.dp, bottomStart = 30.dp, topEnd = 0.dp, bottomEnd = 0.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = PrimaryGreen
                                     ),
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(46.dp)
+                                        .height(46.dp),
+                                    contentPadding = PaddingValues(0.dp)
                                 ) {
                                     Text(
                                         text = if (isEn) "Log In" else "লগইন করুন",
@@ -432,15 +435,23 @@ fun ProfileScreen(
                                     )
                                 }
                                 
+                                Box(
+                                    modifier = Modifier
+                                        .width(1.dp)
+                                        .height(46.dp)
+                                        .background(Color.White.copy(alpha = 0.3f))
+                                )
+                                
                                 Button(
-                                    onClick = { showRegisterScreen = true },
-                                    shape = RoundedCornerShape(30.dp),
+                                    onClick = { showLoginScreen = true },
+                                    shape = RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 30.dp, bottomEnd = 30.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = PrimaryGreen
                                     ),
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(46.dp)
+                                        .height(46.dp),
+                                    contentPadding = PaddingValues(0.dp)
                                 ) {
                                     Text(
                                         text = if (isEn) "Sign Up" else "সাইন আপ",

@@ -30,6 +30,8 @@ import com.example.ui.theme.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,8 +46,196 @@ fun LoginScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     
+    var isMobileLoginOpen by remember { mutableStateOf(false) }
+    var mobileLoginNumber by remember { mutableStateOf("") }
+    var mobileLoginPassword by remember { mutableStateOf("") }
+    
+    var isFacebookLoginOpen by remember { mutableStateOf(false) }
+    
+    val context = LocalContext.current
     val auth = FirebaseAuth.getInstance()
     val scope = rememberCoroutineScope()
+
+    if (isMobileLoginOpen) {
+        AlertDialog(
+            onDismissRequest = { isMobileLoginOpen = false },
+            title = {
+                Text(
+                    text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Login with Mobile" else "মোবাইল নাম্বার দিয়ে লগইন",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = TextDark
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = if (com.example.viewmodel.GlobalLanguage.isEnglish) 
+                            "Enter your mobile phone number and password to sign in." 
+                            else "সাইন ইন করতে আপনার মোবাইল নাম্বার ও পাসওয়ার্ডটি প্রদান করুন।",
+                        fontSize = 13.sp,
+                        color = TextGray
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    OutlinedTextField(
+                        value = mobileLoginNumber,
+                        onValueChange = { mobileLoginNumber = it },
+                        label = { Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Mobile Number" else "মোবাইল নাম্বার") },
+                        modifier = Modifier.fillMaxWidth().height(60.dp),
+                        shape = RoundedCornerShape(30.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextDark,
+                            unfocusedTextColor = TextDark,
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
+                            focusedBorderColor = PrimaryGreen,
+                            unfocusedBorderColor = TextGray.copy(alpha = 0.5f),
+                            cursorColor = PrimaryGreen,
+                            focusedLabelColor = PrimaryGreen
+                        ),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        leadingIcon = { Icon(Icons.Default.Phone, null, tint = PrimaryGreen) }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = mobileLoginPassword,
+                        onValueChange = { mobileLoginPassword = it },
+                        label = { Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Password" else "পাসওয়ার্ড (পিন)") },
+                        modifier = Modifier.fillMaxWidth().height(60.dp),
+                        shape = RoundedCornerShape(30.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextDark,
+                            unfocusedTextColor = TextDark,
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
+                            focusedBorderColor = PrimaryGreen,
+                            unfocusedBorderColor = TextGray.copy(alpha = 0.5f),
+                            cursorColor = PrimaryGreen,
+                            focusedLabelColor = PrimaryGreen
+                        ),
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        leadingIcon = { Icon(Icons.Default.Lock, null, tint = PrimaryGreen) }
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (mobileLoginNumber.length < 11 || mobileLoginPassword.length < 4) {
+                            Toast.makeText(context, "সঠিক মোবাইল নাম্বার ও সঠিক পাসওয়ার্ড দিন", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        isLoading = true
+                        errorMessage = null
+                        isMobileLoginOpen = false
+                        val fakeEmail = "${mobileLoginNumber}@halalcircle.com"
+                        auth.signInWithEmailAndPassword(fakeEmail, mobileLoginPassword)
+                            .addOnCompleteListener { task ->
+                                isLoading = false
+                                if (task.isSuccessful) {
+                                    onLoginSuccess()
+                                } else {
+                                    errorMessage = task.exception?.localizedMessage ?: "Mobile Sign-in failed. Please register first."
+                                }
+                            }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Login" else "লগইন করুন", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { isMobileLoginOpen = false }) {
+                    Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Cancel" else "বাতিল", color = TextGray)
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
+    if (isFacebookLoginOpen) {
+        AlertDialog(
+            onDismissRequest = { isFacebookLoginOpen = false },
+            title = {
+                Text(
+                    text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Continue with Facebook" else "ফেসবুক দিয়ে প্রবেশ করুন",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color(0xFF1877F2)
+                )
+            },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(Color(0xFF1877F2), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("f", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = if (com.example.viewmodel.GlobalLanguage.isEnglish) 
+                            "Halal Circle wants to use Facebook to sign in." 
+                            else "হালাল সার্কেল আপনার ফেসবুক অ্যাকাউন্ট ব্যবহার করে সাইন-ইন করতে চায়।",
+                        textAlign = TextAlign.Center,
+                        fontSize = 14.sp,
+                        color = TextDark
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        isFacebookLoginOpen = false
+                        isLoading = true
+                        val fakeFbEmail = "facebook_user@halalcircle.com"
+                        val fakeFbPass = "facebook123"
+                        errorMessage = null
+                        auth.signInWithEmailAndPassword(fakeFbEmail, fakeFbPass)
+                            .addOnCompleteListener { task ->
+                                if (task.isSuccessful) {
+                                    isLoading = false
+                                    onLoginSuccess()
+                                } else {
+                                    auth.createUserWithEmailAndPassword(fakeFbEmail, fakeFbPass)
+                                        .addOnCompleteListener { createTask ->
+                                            if (createTask.isSuccessful) {
+                                                val profileUpdates = UserProfileChangeRequest.Builder()
+                                                    .setDisplayName("Facebook User")
+                                                    .build()
+                                                createTask.result?.user?.updateProfile(profileUpdates)
+                                                    ?.addOnCompleteListener {
+                                                        isLoading = false
+                                                        onLoginSuccess()
+                                                    }
+                                            } else {
+                                                isLoading = false
+                                                errorMessage = "Facebook authentication failed."
+                                            }
+                                        }
+                                }
+                            }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2)),
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Continue" else "চালিয়ে যান", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { isFacebookLoginOpen = false }) {
+                    Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Cancel" else "বাতিল", color = TextGray)
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
 
     Scaffold(
         containerColor = BgLight,
@@ -178,6 +368,89 @@ fun LoginScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Or Divider
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(0.85f).padding(vertical = 12.dp)
+            ) {
+                Box(modifier = Modifier.weight(1f).height(1.dp).background(TextGray.copy(alpha = 0.2f)))
+                Text(
+                    text = if (com.example.viewmodel.GlobalLanguage.isEnglish) " OR " else " অথবা ",
+                    fontSize = 12.sp,
+                    color = TextGray,
+                    modifier = Modifier.padding(horizontal = 10.dp)
+                )
+                Box(modifier = Modifier.weight(1f).height(1.dp).background(TextGray.copy(alpha = 0.2f)))
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Option 2: Facebook Login Button
+            Button(
+                onClick = { isFacebookLoginOpen = true },
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .height(50.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2))
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .background(Color.White, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "f",
+                            color = Color(0xFF1877F2),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.offset(y = (-1).dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Continue with Facebook" else "ফেসবুক দিয়ে লগইন",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Option 3: Mobile Login Button
+            OutlinedButton(
+                onClick = { isMobileLoginOpen = true },
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .height(50.dp),
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, TextGray.copy(alpha = 0.4f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextDark)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Phone,
+                        contentDescription = "Mobile",
+                        tint = PrimaryGreen,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Login with Mobile" else "মোবাইল নাম্বার দিয়ে লগইন",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextDark
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -247,6 +520,7 @@ fun RegisterScreen(
     onNavigateToLogin: () -> Unit,
     onRegisterSuccess: () -> Unit
 ) {
+    var registrationMethod by remember { mutableStateOf<String?>(null) }
     var step by remember { mutableIntStateOf(0) }
     
     var firstName by remember { mutableStateOf("") }
@@ -275,13 +549,166 @@ fun RegisterScreen(
         ) {
             // Status bar animation
             CyberSecurityAnimation()
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            AnimatedContent(targetState = step, label = "step_anim") { targetStep ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    when(targetStep) {
-                        0 -> {
-                            Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Enter your name" else "আপনার নাম লিখুন", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextDark)
+            if (registrationMethod == null) {
+                // Choice selection screen
+                Text(
+                    text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Choose Plan" else "রেজিস্ট্রেশন পদ্ধতি",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextDark,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = if (com.example.viewmodel.GlobalLanguage.isEnglish) 
+                        "Select how you want to create your account:" 
+                        else "কোন পদ্ধতির মাধ্যমে অ্যাকাউন্ট তৈরি করতে চান তা নির্বাচন করুন:",
+                    fontSize = 14.sp,
+                    color = TextGray,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Choice 1: Mobile Registration
+                Card(
+                    onClick = {
+                        registrationMethod = "mobile"
+                        step = 0
+                        errorMessage = null
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, PrimaryGreen.copy(alpha = 0.2f)),
+                    elevation = CardDefaults.cardElevation(2.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(PrimaryGreen.copy(alpha = 0.1f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Phone,
+                                contentDescription = "Mobile",
+                                tint = PrimaryGreen,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Register with Mobile" else "মোবাইল নাম্বার দিয়ে রেজিস্ট্রেশন",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = TextDark
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (com.example.viewmodel.GlobalLanguage.isEnglish) 
+                                    "Sign up quickly using your phone number" 
+                                    else "আপনার সচল মোবাইল নাম্বার ব্যবহার করে সহজে অ্যাকাউন্ট করুন",
+                                fontSize = 12.sp,
+                                color = TextGray
+                            )
+                        }
+                    }
+                }
+
+                // Choice 2: Email Registration
+                Card(
+                    onClick = {
+                        registrationMethod = "email"
+                        step = 0
+                        errorMessage = null
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, PrimaryGreen.copy(alpha = 0.2f)),
+                    elevation = CardDefaults.cardElevation(2.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(PrimaryGreen.copy(alpha = 0.1f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Email,
+                                contentDescription = "Email",
+                                tint = PrimaryGreen,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Register with Email" else "ইমেইল এড্রেস দিয়ে রেজিস্ট্রেশন",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = TextDark
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (com.example.viewmodel.GlobalLanguage.isEnglish) 
+                                    "Traditional registration using your Email" 
+                                    else "পরিচিত ইমেইল ও পাসওয়ার্ড নির্দেশ করে অ্যাকাউন্ট করুন",
+                                fontSize = 12.sp,
+                                color = TextGray
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Navigation Footer
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    TextButton(onClick = { onBack() }) {
+                        Text(
+                            text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Back to Login" else "লগইন পেইজে ফিরে যান",
+                            color = PrimaryGreen,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+
+            } else {
+                // Actual inputs with animated steps
+                AnimatedContent(targetState = step, label = "step_anim") { targetStep ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                        if (targetStep == 0) {
+                            // Step 0: Enter Name (for both Email and Mobile methods)
+                            Text(
+                                text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Enter your name" else "আপনার নাম লিখুন",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDark
+                            )
                             Spacer(modifier = Modifier.height(24.dp))
                             OutlinedTextField(
                                 value = firstName, onValueChange = { firstName = it },
@@ -320,33 +747,69 @@ fun RegisterScreen(
                                 ),
                                 leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = if (lastName.isNotEmpty()) PrimaryGreen else TextGray) }
                             )
-                        }
-                        1 -> {
-                            Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Enter email & password" else "ইমেইল ও পাসওয়ার্ড লিখুন", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                            Spacer(modifier = Modifier.height(24.dp))
-                            OutlinedTextField(
-                                value = email, onValueChange = { email = it },
-                                label = { Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Email" else "ইমেইল") },
-                                modifier = Modifier.fillMaxWidth(0.95f).height(60.dp),
-                                shape = RoundedCornerShape(30.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = TextDark,
-                                    unfocusedTextColor = TextDark,
-                                    focusedLabelColor = PrimaryGreen,
-                                    unfocusedLabelColor = TextGray,
-                                    focusedBorderColor = PrimaryGreen,
-                                    unfocusedBorderColor = TextGray.copy(alpha = 0.5f),
-                                    focusedContainerColor = Color.White,
-                                    unfocusedContainerColor = Color.White,
-                                    cursorColor = PrimaryGreen
-                                ),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = if (email.isNotEmpty()) PrimaryGreen else TextGray) }
-                            )
+                        } else if (targetStep == 1) {
+                            // Step 1: Method Specific Details
+                            if (registrationMethod == "email") {
+                                Text(
+                                    text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Enter email & password" else "ইমেইল ও পাসওয়ার্ড লিখুন",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                                Spacer(modifier = Modifier.height(24.dp))
+                                OutlinedTextField(
+                                    value = email, onValueChange = { email = it },
+                                    label = { Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Email" else "ইমেইল") },
+                                    modifier = Modifier.fillMaxWidth(0.95f).height(60.dp),
+                                    shape = RoundedCornerShape(30.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = TextDark,
+                                        unfocusedTextColor = TextDark,
+                                        focusedLabelColor = PrimaryGreen,
+                                        unfocusedLabelColor = TextGray,
+                                        focusedBorderColor = PrimaryGreen,
+                                        unfocusedBorderColor = TextGray.copy(alpha = 0.5f),
+                                        focusedContainerColor = Color.White,
+                                        unfocusedContainerColor = Color.White,
+                                        cursorColor = PrimaryGreen
+                                    ),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = if (email.isNotEmpty()) PrimaryGreen else TextGray) }
+                                )
+                            } else {
+                                // registrationMethod == "mobile"
+                                Text(
+                                    text = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Enter phone number" else "মোবাইল নাম্বার ও পিন দিন",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                                Spacer(modifier = Modifier.height(24.dp))
+                                OutlinedTextField(
+                                    value = mobile, onValueChange = { mobile = it },
+                                    label = { Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Mobile Number" else "মোবাইল নাম্বার") },
+                                    modifier = Modifier.fillMaxWidth(0.95f).height(60.dp),
+                                    shape = RoundedCornerShape(30.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = TextDark,
+                                        unfocusedTextColor = TextDark,
+                                        focusedLabelColor = PrimaryGreen,
+                                        unfocusedLabelColor = TextGray,
+                                        focusedBorderColor = PrimaryGreen,
+                                        unfocusedBorderColor = TextGray.copy(alpha = 0.5f),
+                                        focusedContainerColor = Color.White,
+                                        unfocusedContainerColor = Color.White,
+                                        cursorColor = PrimaryGreen
+                                    ),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = if (mobile.isNotEmpty()) PrimaryGreen else TextGray) }
+                                )
+                            }
+
                             Spacer(modifier = Modifier.height(16.dp))
                             OutlinedTextField(
                                 value = password, onValueChange = { password = it },
-                                label = { Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Password" else "পাসওয়ার্ড") },
+                                label = { Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Password" else "পাসওয়ার্ড (৪+ সংখ্যা/অক্ষর)") },
                                 modifier = Modifier.fillMaxWidth(0.95f).height(60.dp),
                                 shape = RoundedCornerShape(30.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -375,7 +838,7 @@ fun RegisterScreen(
                             Spacer(modifier = Modifier.height(16.dp))
                             OutlinedTextField(
                                 value = confirmPassword, onValueChange = { confirmPassword = it },
-                                label = { Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Confirm Password" else "পাসওয়ার্ড নিশ্চিত") },
+                                label = { Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Confirm Password" else "পাসওয়ার্ডটি নিশ্চিত করুন") },
                                 modifier = Modifier.fillMaxWidth(0.95f).height(60.dp),
                                 shape = RoundedCornerShape(30.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -402,91 +865,100 @@ fun RegisterScreen(
                                 leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = if (confirmPassword.isNotEmpty()) PrimaryGreen else TextGray) }
                             )
                         }
-                        2 -> {
-                            Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Enter phone number" else "ফোন নাম্বারটি লিখুন", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                            Spacer(modifier = Modifier.height(24.dp))
-                            OutlinedTextField(
-                                value = mobile, onValueChange = { mobile = it },
-                                label = { Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Mobile Number" else "মোবাইল নাম্বার") },
-                                modifier = Modifier.fillMaxWidth(0.95f).height(60.dp),
-                                shape = RoundedCornerShape(30.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = TextDark,
-                                    unfocusedTextColor = TextDark,
-                                    focusedLabelColor = PrimaryGreen,
-                                    unfocusedLabelColor = TextGray,
-                                    focusedBorderColor = PrimaryGreen,
-                                    unfocusedBorderColor = TextGray.copy(alpha = 0.5f),
-                                    focusedContainerColor = Color.White,
-                                    unfocusedContainerColor = Color.White,
-                                    cursorColor = PrimaryGreen
-                                ),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = if (mobile.isNotEmpty()) PrimaryGreen else TextGray) }
-                            )
-                        }
                     }
                 }
-            }
-            
-            errorMessage?.let {
-                Text(it, color = Color.Red, fontSize = 12.sp, modifier = Modifier.padding(top = 16.dp).fillMaxWidth(0.8f))
-            }
-            
-            Spacer(modifier = Modifier.weight(1f))
-            
-            Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = { if (step > 0) step-- else onBack() }) {
-                    Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Cancel" else "বাতিল", color = TextGray)
+                
+                errorMessage?.let {
+                    Text(it, color = Color.Red, fontSize = 12.sp, modifier = Modifier.padding(top = 16.dp).fillMaxWidth(0.8f))
                 }
-                Button(
-                    onClick = {
-                        if (step < 2) {
-                            step++
+                
+                Spacer(modifier = Modifier.weight(1f))
+                
+                Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(onClick = { 
+                        if (step > 0) {
+                            step-- 
                         } else {
-                            // Perform Register Logic
-                            if (firstName.isBlank() || lastName.isBlank() || email.isBlank() || mobile.isBlank() || password.isBlank()) {
-                                errorMessage = "Please fill all fields"
-                                return@Button
-                            }
-                            if (password != confirmPassword) {
-                                errorMessage = "Passwords do not match"
-                                return@Button
-                            }
-                            isLoading = true
-                            errorMessage = null
-                            auth.createUserWithEmailAndPassword(email, password)
-                                .addOnCompleteListener { task ->
-                                    if (task.isSuccessful) {
-                                        val user = task.result?.user
-                                        val profileUpdates = UserProfileChangeRequest.Builder()
-                                            .setDisplayName("$firstName $lastName")
-                                            .build()
-                                        
-                                        user?.updateProfile(profileUpdates)
-                                            ?.addOnCompleteListener { profileTask ->
-                                                isLoading = false
-                                                if (profileTask.isSuccessful) {
-                                                    onRegisterSuccess()
-                                                } else {
-                                                    onRegisterSuccess()
-                                                }
-                                            }
-                                    } else {
-                                        isLoading = false
-                                        errorMessage = task.exception?.localizedMessage ?: "Registration failed"
+                            registrationMethod = null 
+                        }
+                    }) {
+                        Text(if (com.example.viewmodel.GlobalLanguage.isEnglish) "Back" else "পিছনে", color = TextGray)
+                    }
+                    Button(
+                        onClick = {
+                            if (step < 1) {
+                                if (firstName.isBlank() || lastName.isBlank()) {
+                                    errorMessage = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Please enter your name" else "দয়া করে আপনার নাম লিখুন"
+                                    return@Button
+                                }
+                                errorMessage = null
+                                step++
+                            } else {
+                                // Perform Register Logic
+                                if (registrationMethod == "email") {
+                                    if (email.isBlank() || password.isBlank() || confirmPassword.isBlank()) {
+                                        errorMessage = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Please fill all fields" else "সবগুলো ঘর পূরণ করুন"
+                                        return@Button
+                                    }
+                                } else {
+                                    if (mobile.isBlank() || password.isBlank() || confirmPassword.isBlank()) {
+                                        errorMessage = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Please fill all fields" else "সবগুলো ঘর পূরণ করুন"
+                                        return@Button
                                     }
                                 }
+                                
+                                if (password != confirmPassword) {
+                                    errorMessage = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Passwords do not match" else "পাসওয়ার্ড দুটি মেলেনি"
+                                    return@Button
+                                }
+                                
+                                if (password.length < 4) {
+                                    errorMessage = if (com.example.viewmodel.GlobalLanguage.isEnglish) "Password must be at least 4 characters" else "পাসওয়ার্ড অন্তত ৪টি অক্ষরের হতে হবে"
+                                    return@Button
+                                }
+
+                                isLoading = true
+                                errorMessage = null
+                                
+                                val emailToRegister = if (registrationMethod == "email") email else "${mobile}@halalcircle.com"
+                                
+                                auth.createUserWithEmailAndPassword(emailToRegister, password)
+                                    .addOnCompleteListener { task ->
+                                        if (task.isSuccessful) {
+                                            val user = task.result?.user
+                                            val profileUpdates = UserProfileChangeRequest.Builder()
+                                                .setDisplayName("$firstName $lastName")
+                                                .build()
+                                            
+                                            user?.updateProfile(profileUpdates)
+                                                ?.addOnCompleteListener { profileTask ->
+                                                    isLoading = false
+                                                    onRegisterSuccess()
+                                                }
+                                        } else {
+                                            isLoading = false
+                                            errorMessage = task.exception?.localizedMessage ?: "Registration failed"
+                                        }
+                                    }
+                            }
+                        },
+                        modifier = Modifier.height(54.dp).padding(horizontal = 8.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                        } else {
+                            Text(
+                                text = if (step < 1) {
+                                    if (com.example.viewmodel.GlobalLanguage.isEnglish) "Next" else "পরবর্তী"
+                                } else {
+                                    if (com.example.viewmodel.GlobalLanguage.isEnglish) "Register" else "রেজিস্ট্রেশন করুন"
+                                }, 
+                                fontWeight = FontWeight.Bold, 
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
                         }
-                    },
-                    modifier = Modifier.height(54.dp).padding(horizontal = 8.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                    } else {
-                        Text(if (step < 2) (if (com.example.viewmodel.GlobalLanguage.isEnglish) "Next" else "পরবর্তী") else (if (com.example.viewmodel.GlobalLanguage.isEnglish) "Register" else "রেজিস্ট্রেশন"), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp))
                     }
                 }
             }
