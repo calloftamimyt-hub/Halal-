@@ -126,9 +126,10 @@ dependencies {
 }
 
 tasks.register<Copy>("copyApkToWorkspace") {
+    outputs.upToDateWhen { false }
     from(layout.buildDirectory.dir("outputs/apk/debug"))
     include("app-debug.apk")
-    into(file("${rootDir}/apks"))
+    into(rootProject.layout.projectDirectory.dir("apks"))
 }
 
 project.afterEvaluate {
