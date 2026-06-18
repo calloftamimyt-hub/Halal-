@@ -1291,8 +1291,8 @@ fun CategoryGrid(
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
-                                .width(68.dp)
-                                .clip(CircleShape)
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
                                 .clickable {
                                     if (item.first == "আমল শিক্ষা" || item.first == "তাসবিহ" || item.first == "নামাজ শিক্ষা" || 
                                         item.first == "Amal Learning" || item.first == "Tasbih" || item.first == "Salah Learning") {
@@ -1329,10 +1329,18 @@ fun CategoryGrid(
                                 Icon(item.second, contentDescription = item.first, tint = Color.White, modifier = Modifier.size(24.dp))
                             }
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text(item.first, color = TextDark, fontSize = 11.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Medium, maxLines = 1)
+                            Text(
+                                text = item.first,
+                                color = TextDark,
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 2,
+                                lineHeight = 14.sp
+                            )
                         }
                     } else {
-                        Spacer(modifier = Modifier.width(68.dp))
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
