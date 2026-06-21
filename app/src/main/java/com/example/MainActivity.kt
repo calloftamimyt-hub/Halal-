@@ -38,6 +38,7 @@ import com.example.viewmodel.SettingsViewModel
 import com.example.viewmodel.GlobalLanguage
 import com.example.viewmodel.AppLanguage
 import com.example.ui.LocalAppStrings
+import com.example.social.WhatsOnYourMindSection
 import com.example.ui.theme.*
 import android.app.Activity
 import androidx.core.view.WindowCompat
@@ -931,6 +932,8 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        var isCategoryExpanded by remember { mutableStateOf(false) }
+
         // Categories Section Header
         Row(
             modifier = Modifier
@@ -941,11 +944,12 @@ fun HomeScreen(
         ) {
             Text(LocalAppStrings.current.categories, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextDark)
             Text(
-                if (GlobalLanguage.isEnglish) "See All >" else "সবগুলো >", 
+                if (GlobalLanguage.isEnglish) if (isCategoryExpanded) "See Less >" else "See All >" 
+                else if (isCategoryExpanded) "কম দেখুন >" else "সবগুলো >", 
                 color = PrimaryGreen, 
                 fontSize = 12.sp, 
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.clickable { onNavigateToTools() }
+                modifier = Modifier.clickable { isCategoryExpanded = !isCategoryExpanded }
             )
         }
         
@@ -960,8 +964,13 @@ fun HomeScreen(
             onNavigateToQibla,
             onNavigateToAllahNames = onNavigateToAllahNames,
             onNavigateToRamadan = onNavigateToRamadan,
-            maxItems = 8
+            maxItems = if (isCategoryExpanded) null else 8
         )
+        
+        // "What's Your Mind" Section will be shown here when not expanded
+        if (!isCategoryExpanded) {
+            WhatsOnYourMindSection()
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 
