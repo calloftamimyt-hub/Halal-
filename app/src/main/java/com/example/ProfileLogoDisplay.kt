@@ -19,7 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.PrimaryGreen
-import io.github.jan_tennert.supabase.auth.auth
+import io.github.jan.supabase.auth.auth
 
 @Composable
 fun ProfileLogoDisplay(

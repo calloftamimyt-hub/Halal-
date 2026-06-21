@@ -44,8 +44,8 @@ import androidx.core.view.WindowCompat
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.toArgb
 import com.google.accompanist.permissions.*
-import io.github.jan_tennert.supabase.auth.auth
-import io.github.jan_tennert.supabase.auth.status.SessionStatus
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

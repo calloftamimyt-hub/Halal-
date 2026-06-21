@@ -39,8 +39,8 @@ import com.example.ui.theme.*
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import io.github.jan_tennert.supabase.auth.auth
-import io.github.jan_tennert.supabase.auth.user.User
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.user.UserInfo
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.*
@@ -83,7 +83,7 @@ fun ProfileScreen(
     val scope = rememberCoroutineScope()
     
     val auth = remember { Supabase.client.auth }
-    var currentUser by remember { mutableStateOf<User?>(null) }
+    var currentUser by remember { mutableStateOf<UserInfo?>(null) }
 
     LaunchedEffect(Unit) {
         currentUser = auth.currentUserOrNull()
@@ -246,7 +246,7 @@ fun ProfileScreen(
                                     scope.launch {
                                         try {
                                             auth.updateUser {
-                                                userMetadata = buildJsonObject {
+                                                data = buildJsonObject {
                                                     put("full_name", name)
                                                 }
                                             }

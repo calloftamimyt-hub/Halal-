@@ -1,8 +1,8 @@
 package com.example
 
-import io.github.jan_tennert.supabase.auth.Auth
-import io.github.jan_tennert.supabase.createSupabaseClient
-import io.github.jan_tennert.supabase.postgrest.Postgrest
+import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.postgrest.Postgrest
 
 object Supabase {
     val client = createSupabaseClient(

@@ -40,7 +40,7 @@ import com.example.ui.theme.TextDark
 import com.example.viewmodel.GlobalLanguage
 import com.example.database.TrackerDatabase
 import com.example.database.NotificationEntity
-import io.github.jan_tennert.supabase.auth.auth
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
 import java.util.UUID
 

@@ -42,7 +42,8 @@ import com.example.ui.theme.PrimaryGreen
 import com.example.ui.theme.TextDark
 import com.example.ui.theme.TextGray
 import com.example.viewmodel.GlobalLanguage
-import io.github.jan_tennert.supabase.auth.auth
+import io.github.jan.supabase.auth.auth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlin.random.Random
 
 // Child Profile Data Model
@@ -1917,7 +1918,7 @@ fun ChildSection(
                                 val pinCode = (100000..999999).random().toString()
                                 val docData = mapOf(
                                     "childUid" to currentUserId,
-                                    "childName" to (supabase.gotrue.currentUserOrNull()?.userMetadata?.get("full_name")?.toString() ?: "Deen Child"),
+                                    "childName" to (Supabase.client.auth.currentUserOrNull()?.userMetadata?.get("full_name")?.toString() ?: "Deen Child"),
                                     "timestamp" to System.currentTimeMillis()
                                 )
                                 db.collection("pairing_codes")

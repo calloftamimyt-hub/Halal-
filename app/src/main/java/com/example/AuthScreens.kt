@@ -27,8 +27,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.*
-import io.github.jan_tennert.supabase.auth.auth
-import io.github.jan_tennert.supabase.auth.providers.builtin.Email as SupabaseEmail
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.builtin.Email as SupabaseEmail
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.coroutines.launch
@@ -936,7 +936,7 @@ fun RegisterScreen(
                                         supabase.auth.signUpWith(SupabaseEmail) {
                                             this.email = emailToRegister
                                             this.password = password
-                                            userMetadata = buildJsonObject {
+                                            data = buildJsonObject {
                                                 put("full_name", "$firstName $lastName")
                                             }
                                         }
