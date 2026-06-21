@@ -35,12 +35,14 @@ import com.example.ui.LocalAppStrings
 import com.example.database.DailyTracker
 import java.text.SimpleDateFormat
 import java.util.Locale
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.UserProfileChangeRequest
 import com.example.ui.theme.*
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import io.github.jan_tennert.supabase.auth.auth
+import io.github.jan_tennert.supabase.auth.user.User
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import java.io.File
@@ -78,22 +80,18 @@ fun ProfileScreen(
 ) {
     val context = LocalContext.current
     val sharedPrefs = remember { context.getSharedPreferences("profile_prefs", Context.MODE_PRIVATE) }
+    val scope = rememberCoroutineScope()
     
-    val auth = remember { FirebaseAuth.getInstance() }
-    var currentUser by remember { mutableStateOf(auth.currentUser) }
+    val auth = remember { Supabase.client.auth }
+    var currentUser by remember { mutableStateOf<User?>(null) }
 
-    // Listen for Auth changes in real-time
-    DisposableEffect(auth) {
-        val listener = FirebaseAuth.AuthStateListener { 
-            currentUser = it.currentUser
-        }
-        auth.addAuthStateListener(listener)
-        onDispose { auth.removeAuthStateListener(listener) }
+    LaunchedEffect(Unit) {
+        currentUser = auth.currentUserOrNull()
     }
     
     // Persistent profile state - remove demo defaults
     var userName by remember(currentUser) { 
-        mutableStateOf(currentUser?.displayName ?: if (GlobalLanguage.isEnglish) "Guest User" else "অতিথি ইউজার") 
+        mutableStateOf(currentUser?.userMetadata?.get("full_name")?.toString() ?: if (GlobalLanguage.isEnglish) "Guest User" else "অতিথি ইউজার") 
     }
     var userEmail by remember(currentUser) { 
         mutableStateOf(currentUser?.email ?: "") 
@@ -106,7 +104,7 @@ fun ProfileScreen(
 
     // Fetch profile data from Firestore on login to ensure persistence even after data clear
     LaunchedEffect(currentUser) {
-        currentUser?.uid?.let { uid ->
+        currentUser?.id?.let { uid ->
             val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
             db.collection("users").document(uid).get()
                 .addOnSuccessListener { doc ->
@@ -243,26 +241,20 @@ fun ProfileScreen(
                     selectedLogoIndex = logoIdx
                     customAvatarUri = customUri
                     
-                    // Sync with Firebase Profile if logged in
-                    currentUser?.let { user ->
-                        val profileUpdates = UserProfileChangeRequest.Builder()
-                            .setDisplayName(name)
-                            .build()
-                        user.updateProfile(profileUpdates)
-
-                        // Save to Firestore users collection
-                        val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
-                        db.collection("users").document(user.uid).set(
-                            mapOf(
-                                "name" to name,
-                                "email" to email,
-                                "profileImageUrl" to customUri,
-                                "selectedLogoIndex" to logoIdx,
-                                "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-                            ),
-                            com.google.firebase.firestore.SetOptions.merge()
-                        )
-                    }
+                                // Sync with Supabase Profile if logged in
+                                currentUser?.let { user ->
+                                    scope.launch {
+                                        try {
+                                            auth.updateUser {
+                                                userMetadata = buildJsonObject {
+                                                    put("full_name", name)
+                                                }
+                                            }
+                                        } catch (e: Exception) {
+                                            // Handle error
+                                        }
+                                    }
+                                }
                     
                     sharedPrefs.edit().apply {
                         putString("user_name", name)
@@ -359,7 +351,7 @@ fun ProfileScreen(
                             ) {
                                 ProfileLogoDisplay(
                                     modifier = Modifier.size(86.dp),
-                                    userId = currentUser?.uid ?: "",
+                                    userId = currentUser?.id ?: "",
                                     iconSizeDp = 44,
                                     showBorder = false
                                 )
@@ -622,8 +614,11 @@ fun ProfileScreen(
                                 icon = Icons.Default.Logout,
                                 iconColor = Color.Red,
                                 onClick = {
-                                    auth.signOut()
-                                    Toast.makeText(context, if (GlobalLanguage.isEnglish) "Logged out successfully" else "সফলভাবে লগআউট করা হয়েছে", Toast.LENGTH_SHORT).show()
+                                    scope.launch {
+                                        auth.signOut()
+                                        currentUser = null
+                                        Toast.makeText(context, if (GlobalLanguage.isEnglish) "Logged out successfully" else "সফলভাবে লগআউট করা হয়েছে", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             )
 

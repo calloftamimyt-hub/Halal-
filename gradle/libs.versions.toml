@@ -24,6 +24,9 @@ converterMoshi = "2.12.0"
 kotlinxCoroutinesAndroid = "1.10.2"
 kotlinxCoroutinesCore = "1.10.2"
 accompanistPermissions = "0.37.3"
+supabase = "3.1.1"
+ktor = "3.0.1"
+serialization = "1.7.3"
 playServicesLocation = "21.3.0"
 cameraCamera2 = "1.5.0"
 cameraLifecycle = "1.5.0"
@@ -99,6 +102,14 @@ androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplaye
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
 play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
+supabase-bom = { group = "io.github.jan-tennert.supabase", name = "bom", version.ref = "supabase" }
+supabase-auth = { group = "io.github.jan-tennert.supabase", name = "auth-kt" }
+supabase-postgrest = { group = "io.github.jan-tennert.supabase", name = "postgrest-kt" }
+ktor-client-android = { group = "io.ktor", name = "ktor-client-android", version.ref = "ktor" }
+ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
+ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -108,3 +119,4 @@ google-devtools-ksp = { id = "com.google.devtools.ksp", version.ref = "googleDev
 roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
 secrets = { id = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin", version.ref = "secretsGradlePlugin" }
 gms-google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
+kotlinx-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

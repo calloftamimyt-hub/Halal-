@@ -42,8 +42,7 @@ import com.example.ui.theme.PrimaryGreen
 import com.example.ui.theme.TextDark
 import com.example.ui.theme.TextGray
 import com.example.viewmodel.GlobalLanguage
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
+import io.github.jan_tennert.supabase.auth.auth
 import kotlin.random.Random
 
 // Child Profile Data Model
@@ -56,10 +55,10 @@ data class ChildProfile(
 @Composable
 fun ParentalControlScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val auth = remember { FirebaseAuth.getInstance() }
-    val db = remember { FirebaseFirestore.getInstance() }
-    val currentUser = remember { auth.currentUser }
-    val currentUserId = currentUser?.uid ?: ""
+    val supabase = Supabase.client
+    val db = remember { com.google.firebase.firestore.FirebaseFirestore.getInstance() }
+    val currentUser = remember { supabase.auth.currentUserOrNull() }
+    val currentUserId = currentUser?.id ?: ""
     val isEnglish = GlobalLanguage.isEnglish
 
     // SharedPreferences to manage child mode lock status locally
@@ -1918,7 +1917,7 @@ fun ChildSection(
                                 val pinCode = (100000..999999).random().toString()
                                 val docData = mapOf(
                                     "childUid" to currentUserId,
-                                    "childName" to (FirebaseAuth.getInstance().currentUser?.displayName ?: "Deen Child"),
+                                    "childName" to (supabase.gotrue.currentUserOrNull()?.userMetadata?.get("full_name")?.toString() ?: "Deen Child"),
                                     "timestamp" to System.currentTimeMillis()
                                 )
                                 db.collection("pairing_codes")

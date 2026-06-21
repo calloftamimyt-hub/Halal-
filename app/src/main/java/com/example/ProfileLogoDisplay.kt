@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.PrimaryGreen
+import io.github.jan_tennert.supabase.auth.auth
 
 @Composable
 fun ProfileLogoDisplay(
@@ -34,8 +35,8 @@ fun ProfileLogoDisplay(
     // Fallback info for the current user (from prefs)
     val myCustomAvatarUri = sharedPrefs.getString("custom_avatar_uri", "") ?: ""
     val mySelectedLogoIndex = sharedPrefs.getInt("selected_logo_index", 0)
-    val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
-    val currentUserId = auth.currentUser?.uid ?: ""
+    val supabase = Supabase.client
+    val currentUserId = supabase.auth.currentUserOrNull()?.id ?: ""
 
     // State for the uploader's info
     var uploaderImageUrl by remember(userId, initialImageUrl) { mutableStateOf(initialImageUrl) }

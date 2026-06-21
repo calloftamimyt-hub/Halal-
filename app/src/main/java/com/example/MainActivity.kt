@@ -44,7 +44,8 @@ import androidx.core.view.WindowCompat
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.toArgb
 import com.google.accompanist.permissions.*
-import com.google.firebase.auth.FirebaseAuth
+import io.github.jan_tennert.supabase.auth.auth
+import io.github.jan_tennert.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -235,17 +236,18 @@ class MainActivity : ComponentActivity() {
 
                         // Notification Sync Logic
                         LaunchedEffect(context) {
-                            val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+                            val supabase = Supabase.client
                             val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
                             val trackerDb = com.example.database.TrackerDatabase.getDatabase(context)
                             val notificationDao = trackerDb.notificationDao()
 
-                            auth.addAuthStateListener { firebaseAuth ->
-                                val user = firebaseAuth.currentUser
-                                if (user != null) {
-                                    db.collection("remote_notifications")
-                                        .whereEqualTo("toId", user.uid)
-                                        .addSnapshotListener { snapshots, e ->
+                            supabase.auth.sessionStatus.collect { status ->
+                                if (status is SessionStatus.Authenticated) {
+                                    val user = status.session.user
+                                    if (user != null) {
+                                        db.collection("remote_notifications")
+                                            .whereEqualTo("toId", user.id)
+                                            .addSnapshotListener { snapshots, e ->
                                             if (e != null) return@addSnapshotListener
                                             if (snapshots != null) {
                                                 CoroutineScope(Dispatchers.IO).launch {
@@ -317,8 +319,9 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
+                    }
 
-                        val permissions = remember {
+                    val permissions = remember {
                             val list = mutableListOf(
                                 Manifest.permission.ACCESS_COARSE_LOCATION,
                                 Manifest.permission.ACCESS_FINE_LOCATION

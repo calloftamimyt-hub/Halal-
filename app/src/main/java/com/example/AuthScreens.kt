@@ -27,8 +27,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.*
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.UserProfileChangeRequest
+import io.github.jan_tennert.supabase.auth.auth
+import io.github.jan_tennert.supabase.auth.providers.builtin.Email as SupabaseEmail
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
@@ -53,7 +55,7 @@ fun LoginScreen(
     var isFacebookLoginOpen by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
-    val auth = FirebaseAuth.getInstance()
+    val supabase = Supabase.client
     val scope = rememberCoroutineScope()
 
     if (isMobileLoginOpen) {
@@ -130,15 +132,19 @@ fun LoginScreen(
                         errorMessage = null
                         isMobileLoginOpen = false
                         val fakeEmail = "${mobileLoginNumber}@halalcircle.com"
-                        auth.signInWithEmailAndPassword(fakeEmail, mobileLoginPassword)
-                            .addOnCompleteListener { task ->
-                                isLoading = false
-                                if (task.isSuccessful) {
-                                    onLoginSuccess()
-                                } else {
-                                    errorMessage = task.exception?.localizedMessage ?: "Mobile Sign-in failed. Please register first."
+                        scope.launch {
+                            try {
+                                supabase.auth.signInWith(SupabaseEmail) {
+                                    this.email = fakeEmail
+                                    this.password = mobileLoginPassword
                                 }
+                                isLoading = false
+                                onLoginSuccess()
+                            } catch (e: Exception) {
+                                isLoading = false
+                                errorMessage = e.localizedMessage ?: "Mobile Sign-in failed. Please register first."
                             }
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
                     shape = RoundedCornerShape(20.dp)
@@ -196,30 +202,28 @@ fun LoginScreen(
                         val fakeFbEmail = "facebook_user@halalcircle.com"
                         val fakeFbPass = "facebook123"
                         errorMessage = null
-                        auth.signInWithEmailAndPassword(fakeFbEmail, fakeFbPass)
-                            .addOnCompleteListener { task ->
-                                if (task.isSuccessful) {
+                        scope.launch {
+                            try {
+                                supabase.auth.signInWith(SupabaseEmail) {
+                                    this.email = fakeFbEmail
+                                    this.password = fakeFbPass
+                                }
+                                isLoading = false
+                                onLoginSuccess()
+                            } catch (e: Exception) {
+                                try {
+                                    supabase.auth.signUpWith(SupabaseEmail) {
+                                        this.email = fakeFbEmail
+                                        this.password = fakeFbPass
+                                    }
                                     isLoading = false
                                     onLoginSuccess()
-                                } else {
-                                    auth.createUserWithEmailAndPassword(fakeFbEmail, fakeFbPass)
-                                        .addOnCompleteListener { createTask ->
-                                            if (createTask.isSuccessful) {
-                                                val profileUpdates = UserProfileChangeRequest.Builder()
-                                                    .setDisplayName("Facebook User")
-                                                    .build()
-                                                createTask.result?.user?.updateProfile(profileUpdates)
-                                                    ?.addOnCompleteListener {
-                                                        isLoading = false
-                                                        onLoginSuccess()
-                                                    }
-                                            } else {
-                                                isLoading = false
-                                                errorMessage = "Facebook authentication failed."
-                                            }
-                                        }
+                                } catch (signUpError: Exception) {
+                                    isLoading = false
+                                    errorMessage = "Facebook authentication failed."
                                 }
                             }
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2)),
                     shape = RoundedCornerShape(20.dp)
@@ -344,15 +348,19 @@ fun LoginScreen(
                     }
                     isLoading = true
                     errorMessage = null
-                    auth.signInWithEmailAndPassword(email, password)
-                        .addOnCompleteListener { task ->
+                        scope.launch {
+                            try {
+                                supabase.auth.signInWith(SupabaseEmail) {
+                                    this.email = email
+                                    this.password = password
+                                }
                             isLoading = false
-                            if (task.isSuccessful) {
-                                onLoginSuccess()
-                            } else {
-                                errorMessage = task.exception?.localizedMessage ?: "Login failed"
-                            }
+                            onLoginSuccess()
+                        } catch (e: Exception) {
+                            isLoading = false
+                            errorMessage = e.localizedMessage ?: "Login failed"
                         }
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth(0.85f)
@@ -534,7 +542,8 @@ fun RegisterScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     
-    val auth = FirebaseAuth.getInstance()
+    val supabase = Supabase.client
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         containerColor = BgLight,
@@ -922,24 +931,22 @@ fun RegisterScreen(
                                 
                                 val emailToRegister = if (registrationMethod == "email") email else "${mobile}@halalcircle.com"
                                 
-                                auth.createUserWithEmailAndPassword(emailToRegister, password)
-                                    .addOnCompleteListener { task ->
-                                        if (task.isSuccessful) {
-                                            val user = task.result?.user
-                                            val profileUpdates = UserProfileChangeRequest.Builder()
-                                                .setDisplayName("$firstName $lastName")
-                                                .build()
-                                            
-                                            user?.updateProfile(profileUpdates)
-                                                ?.addOnCompleteListener { profileTask ->
-                                                    isLoading = false
-                                                    onRegisterSuccess()
-                                                }
-                                        } else {
-                                            isLoading = false
-                                            errorMessage = task.exception?.localizedMessage ?: "Registration failed"
+                                scope.launch {
+                                    try {
+                                        supabase.auth.signUpWith(SupabaseEmail) {
+                                            this.email = emailToRegister
+                                            this.password = password
+                                            userMetadata = buildJsonObject {
+                                                put("full_name", "$firstName $lastName")
+                                            }
                                         }
+                                        isLoading = false
+                                        onRegisterSuccess()
+                                    } catch (e: Exception) {
+                                        isLoading = false
+                                        errorMessage = e.localizedMessage ?: "Registration failed"
                                     }
+                                }
                             }
                         },
                         modifier = Modifier.height(54.dp).padding(horizontal = 8.dp),

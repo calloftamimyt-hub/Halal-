@@ -40,6 +40,7 @@ import com.example.ui.theme.TextDark
 import com.example.viewmodel.GlobalLanguage
 import com.example.database.TrackerDatabase
 import com.example.database.NotificationEntity
+import io.github.jan_tennert.supabase.auth.auth
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -313,13 +314,13 @@ fun CreateCircleAlertScreen(
                             status = "PENDING"
                         )
                         
-                        val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                        val currentUser = Supabase.client.auth.currentUserOrNull()
                         
                         // Push to Firestore
                         val firestore = com.google.firebase.firestore.FirebaseFirestore.getInstance()
                         val videoData = hashMapOf(
-                            "userId" to (currentUser?.uid ?: "unknown"),
-                            "author" to (currentUser?.displayName ?: "Unknown Author"),
+                            "userId" to (currentUser?.id ?: "unknown"),
+                            "author" to (currentUser?.userMetadata?.get("full_name")?.toString() ?: "Unknown Author"),
                             "title" to title,
                             "description" to "",
                             "timestamp" to System.currentTimeMillis(),

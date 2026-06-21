@@ -6,6 +6,7 @@ plugins {
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
   alias(libs.plugins.gms.google.services)
+  alias(libs.plugins.kotlinx.serialization)
 }
 
 android {
@@ -42,11 +43,11 @@ android {
     }
   }
   compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
   }
   kotlinOptions {
-    jvmTarget = "11"
+    jvmTarget = "21"
   }
   buildFeatures {
     compose = true
@@ -96,6 +97,13 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   // implementation(libs.firebase.ai)
+  implementation(platform(libs.supabase.bom))
+  implementation(libs.supabase.auth)
+  implementation(libs.supabase.postgrest)
+  implementation(libs.ktor.client.android)
+  implementation(libs.ktor.client.content.negotiation)
+  implementation(libs.ktor.serialization.kotlinx.json)
+  implementation(libs.kotlinx.serialization.json)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)
